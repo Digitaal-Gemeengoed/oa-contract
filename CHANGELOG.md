@@ -1,5 +1,11 @@
 # Wijzigingen
 
+## 0.9.0 — 2026-11-19
+
+- **Zoektermen** in het classificatiemodel (`zoektermen: { resultaat, termen }[]`): woorden van de gemeente bij een klasse. Getoetst (bestaand resultaat, 2 tot 40 tekens, hoogstens 20 per klasse; een waarschuwing bij een uitgezet resultaat). `resultatenInGebruik` geeft ze mee als `zoektermen`.
+- **Ondersteunende stukken** (`ondersteunend: { omschrijving, bewaartermijn, grondslag }`): stukken zonder archiefwaarde, geen klasse uit de selectielijst. Getoetst; zonder grondslag een fout. `ONDERSTEUNEND` en `ondersteunendResultaat`. `bepaalBewaren` rekent de termijn vanaf het classificeren (`start: "classificatie"`).
+- Type `ZaakClassificatie` en `LEES.zaakclassificatie`: hoe andere stukken in dezelfde zaak of hetzelfde dossier zijn geclassificeerd (klassen en aantallen).
+
 ## 0.8.2 — 2026-11-19
 
 - Gebeurtenissen `objecttype.ingetrokken` en `classificatiemodel.ingetrokken`: een geplande versie van het metadatamodel of het classificatiemodel (met een ingangsdatum in de toekomst) is ingetrokken en gaat nooit in.

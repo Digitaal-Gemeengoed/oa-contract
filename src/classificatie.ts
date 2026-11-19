@@ -95,12 +95,43 @@ export interface Afwijking {
   reden: string;
 }
 
+/**
+ * Eigen zoektermen bij een klasse: de woorden die medewerkers gebruiken
+ * ("collegevoorstel", "projectplan"), die de selectielijst niet noemt. De
+ * assistent en het zoeken in het paneel gebruiken ze.
+ */
+export interface Zoektermen {
+  resultaat: string;
+  termen: string[];
+}
+
+/**
+ * Stukken zonder archiefwaarde (kopieën, kladversies, stukken ter
+ * kennisname): geen klasse uit de selectielijst, maar een korte termijn die
+ * de gemeente zelf vastlegt. Alleen met een grondslag: het besluit of de
+ * richtlijn van de gemeente waarin staat wat hieronder valt.
+ */
+export interface Ondersteunend {
+  /** Wat eronder valt, in gewone taal; de medewerker ziet het in het paneel. */
+  omschrijving: string;
+  /** Hoe lang na het classificeren het stuk vernietigd mag worden (ISO 8601-duur). */
+  bewaartermijn: string;
+  /** Het besluit of de richtlijn van de gemeente. */
+  grondslag: string;
+}
+
+/** De klasse voor ondersteunende stukken; de selectielijst gebruikt alleen nummers. */
+export const ONDERSTEUNEND = "ondersteunend";
+
 export interface ClassificatiemodelConfig {
   naam?: string;
   selectielijst: "gemeenten-2020";
   /** Resultaten die de gemeente niet gebruikt. */
   uitgezet?: string[];
   afwijkingen?: Afwijking[];
+  zoektermen?: Zoektermen[];
+  /** Aan: de medewerker kan een stuk als ondersteunend classificeren. */
+  ondersteunend?: Ondersteunend | null;
   attributen: ClassificatieAttribuut[];
   /** Bij deze statussen is een stuk vergrendeld (ten minste één). */
   vergrendelBij: string[];
@@ -129,6 +160,7 @@ export interface Classificatie {
 }
 
 export const CLASSIFICATIEMODELNAAM_MAX = 80;
+export const ZOEKTERMEN_MAX = 20;
 const SLEUTEL = /^[a-z][a-zA-Z0-9]{1,39}$/;
 export const DUUR = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?$/;
 
@@ -182,6 +214,24 @@ export function controleerClassificatiemodel(c: ClassificatiemodelConfig, lijst:
       p.push({ sleutel: a.resultaat, ernst: "waarschuwing", melding: `${a.resultaat}: de selectielijst zegt blijvend bewaren. Vernietigen moet je melden bij de archivaris (Archiefwet).` });
     }
   }
+  const uit = new Set(c.uitgezet ?? []);
+  const metTermen = new Set<string>();
+  for (const z of c.zoektermen ?? []) {
+    if (!ids.has(z.resultaat)) p.push({ sleutel: z.resultaat, ernst: "fout", melding: `Zoektermen bij ${z.resultaat}: dat resultaat staat niet in de selectielijst.` });
+    else if (uit.has(z.resultaat)) p.push({ sleutel: z.resultaat, ernst: "waarschuwing", melding: `${z.resultaat} staat uit; de zoektermen erbij doen niets.` });
+    if (metTermen.has(z.resultaat)) p.push({ sleutel: z.resultaat, ernst: "fout", melding: `Bij ${z.resultaat} staan twee lijsten met zoektermen.` });
+    metTermen.add(z.resultaat);
+    if ((z.termen?.length ?? 0) > ZOEKTERMEN_MAX) p.push({ sleutel: z.resultaat, ernst: "fout", melding: `Bij ${z.resultaat} staan meer dan ${ZOEKTERMEN_MAX} zoektermen.` });
+    for (const t of z.termen ?? []) {
+      if (t.trim().length < 2 || t.trim().length > 40) p.push({ sleutel: z.resultaat, ernst: "fout", melding: `Zoekterm "${t}" bij ${z.resultaat}: 2 tot 40 tekens.` });
+    }
+  }
+  if (c.ondersteunend) {
+    const o = c.ondersteunend;
+    if ((o.omschrijving ?? "").trim().length < 10) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: beschrijf wat eronder valt (minstens tien tekens); de medewerker ziet het in het paneel." });
+    if (!DUUR.test(o.bewaartermijn ?? "")) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: de bewaartermijn is geen geldige duur." });
+    if ((o.grondslag ?? "").trim().length < 5) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: noem de grondslag, het besluit of de richtlijn van de gemeente waarin staat wat hieronder valt." });
+  }
   const gezien = new Set<string>();
   for (const at of c.attributen ?? []) {
     if (!SLEUTEL.test(at.sleutel)) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `De sleutel "${at.sleutel}" mag alleen letters en cijfers bevatten, begint met een kleine letter en is 2 tot 40 tekens.` });
@@ -193,18 +243,37 @@ export function controleerClassificatiemodel(c: ClassificatiemodelConfig, lijst:
   return p;
 }
 
-/** De resultaten die de gemeente gebruikt, met haar afwijkingen erin verwerkt. */
-export function resultatenInGebruik(c: ClassificatiemodelConfig, lijst: Selectielijst): (SelectielijstResultaat & { afwijking?: Afwijking })[] {
+/** De resultaten die de gemeente gebruikt, met haar afwijkingen en zoektermen erin verwerkt. */
+export function resultatenInGebruik(c: ClassificatiemodelConfig, lijst: Selectielijst): (SelectielijstResultaat & { afwijking?: Afwijking; zoektermen?: string[] })[] {
   const uit = new Set(c.uitgezet ?? []);
   const afw = new Map((c.afwijkingen ?? []).map((a) => [a.resultaat, a]));
+  const termen = new Map((c.zoektermen ?? []).filter((z) => z.termen?.length).map((z) => [z.resultaat, z.termen.map((t) => t.trim()).filter(Boolean)]));
   return lijst.resultaten
     .filter((r) => !uit.has(r.id))
     .map((r) => {
       const a = afw.get(r.id);
-      if (!a) return r;
+      const z = termen.get(r.id);
+      const metTermen = z?.length ? { ...r, zoektermen: z } : r;
+      if (!a) return metTermen;
       const waardering = a.waardering ?? r.waardering;
-      return { ...r, waardering, bewaartermijn: waardering === "blijvend-bewaren" ? undefined : (a.bewaartermijn ?? r.bewaartermijn), afwijking: a };
+      return { ...metTermen, waardering, bewaartermijn: waardering === "blijvend-bewaren" ? undefined : (a.bewaartermijn ?? r.bewaartermijn), afwijking: a };
     });
+}
+
+/** Ondersteunend als klasse, zodat het paneel en het bewaren er hetzelfde mee kunnen als met een resultaat. */
+export function ondersteunendResultaat(o: Ondersteunend): SelectielijstResultaat {
+  return {
+    id: ONDERSTEUNEND,
+    procestype: 0,
+    generiek: null,
+    naam: "Ondersteunend",
+    omschrijving: "zonder archiefwaarde",
+    waardering: "vernietigen",
+    procestermijn: "nihil",
+    bewaartermijn: o.bewaartermijn,
+    toelichting: o.omschrijving,
+    herkomst: o.grondslag,
+  };
 }
 
 /** Of een stuk met deze status vergrendeld is. */
@@ -253,8 +322,8 @@ export interface Bewaren {
   klasse: string;
   waardering: Waardering;
   bewaartermijn?: string;
-  /** Waarop de termijn ingaat. */
-  start: "status" | "procesobject";
+  /** Waarop de termijn ingaat; bij ondersteunende stukken het classificeren. */
+  start: "status" | "procesobject" | "classificatie";
   /** De brondatum, zodra die bekend is. */
   brondatum?: string;
   /** De datum waarop het stuk vernietigd mag worden (alleen bij vernietigen, zodra de brondatum bekend is). */
@@ -273,9 +342,19 @@ const nl = (d: string) => d.split("-").reverse().map((x) => String(Number(x))).j
 export function bepaalBewaren(
   c: ClassificatiemodelConfig,
   lijst: Selectielijst,
-  classificatie: Pick<Classificatie, "resultaat" | "einddatumProcesobject">,
+  classificatie: Pick<Classificatie, "resultaat" | "einddatumProcesobject" | "op">,
   statusdata: Record<string, string> = {},
 ): Bewaren | null {
+  if (classificatie.resultaat === ONDERSTEUNEND) {
+    const o = c.ondersteunend;
+    if (!o) return null;
+    const basis = { resultaat: ONDERSTEUNEND, klasse: "Ondersteunend, zonder archiefwaarde", waardering: "vernietigen" as const, bewaartermijn: o.bewaartermijn, start: "classificatie" as const };
+    const termijn = duurInWoorden(o.bewaartermijn);
+    const brondatum = classificatie.op?.slice(0, 10);
+    if (!brondatum) return { ...basis, uitleg: `Ondersteunend: vernietigen ${termijn} na het classificeren (${o.grondslag}).` };
+    const archiefactiedatum = telOp(brondatum, o.bewaartermijn);
+    return { ...basis, brondatum, archiefactiedatum, uitleg: `Ondersteunend: vernietigen na ${nl(archiefactiedatum)}, ${termijn} na het classificeren (${o.grondslag}).` };
+  }
   const r = resultatenInGebruik({ ...c, uitgezet: [] }, lijst).find((x) => x.id === classificatie.resultaat);
   if (!r) return null;
   const basis = { resultaat: r.id, klasse: r.omschrijving ? `${r.naam} · ${r.omschrijving}` : r.naam, waardering: r.waardering, ...(r.afwijking ? { afgeweken: true } : {}) };
@@ -296,4 +375,15 @@ export function bepaalBewaren(
   }
   const archiefactiedatum = telOp(brondatum, r.bewaartermijn);
   return { ...basis, bewaartermijn: r.bewaartermijn, start, brondatum, archiefactiedatum, uitleg: `Vernietigen na ${nl(archiefactiedatum)}: ${termijn} ${wanneer} (${nl(brondatum)}).` };
+}
+
+/**
+ * Hoe de andere zakelijke stukken in dezelfde zaak (of, zonder zaak, hetzelfde
+ * dossier) zijn geclassificeerd. Alleen klassen en aantallen, geen titels:
+ * wie dit stuk mag zien, hoeft de andere niet te mogen zien.
+ */
+export interface ZaakClassificatie {
+  rol: "zaak" | "dossier";
+  waarde: string;
+  klassen: { resultaat: string; aantal: number; laatst: string; einddatumProcesobject?: string }[];
 }

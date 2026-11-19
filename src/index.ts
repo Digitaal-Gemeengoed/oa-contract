@@ -429,6 +429,8 @@ export const LEES = {
   classificatie: "/api/lees/classificatie",
   /** Alleen het model, zonder de selectielijst (licht, voor het opstarten). */
   classificatiemodel: "/api/lees/classificatie?alleenModel=1",
+  /** Hoe andere stukken in dezelfde zaak (of hetzelfde dossier) zijn geclassificeerd: alleen klassen en aantallen. */
+  zaakclassificatie: (id: string) => `/api/lees/objecten/${encodeURIComponent(id)}/zaakclassificatie`,
   /** Wijzigingsvoorstellen: open, of van één stuk (?object=…). */
   voorstellen: (object?: string) => `/api/lees/voorstellen${object ? `?object=${encodeURIComponent(object)}` : ""}`,
   /** Het voorgestelde document als html (om te beoordelen). */

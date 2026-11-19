@@ -9,6 +9,8 @@ import {
   bepaalBewaren,
   isVergrendeld,
   classificatiemodelnaam,
+  ONDERSTEUNEND,
+  ondersteunendResultaat,
 } from "../dist/index.js";
 import { SELECTIELIJST_2020 as L } from "@digitaalgemeengoed/oa-contract/selectielijst";
 
@@ -80,4 +82,27 @@ test("bewaren: termijn vanaf definitief; blijvend; procesobject; met afwijking",
   assert.equal(isVergrendeld("definitief", c), true);
   assert.equal(isVergrendeld("in bewerking", c), false);
   assert.equal(isVergrendeld(undefined, c), false);
+});
+
+test("zoektermen: getoetst en meegegeven met de resultaten in gebruik", () => {
+  const c = { ...standaardClassificatiemodel(), uitgezet: ["1.1"], zoektermen: [{ resultaat: "3.1", termen: ["projectplan", " plan van aanpak "] }, { resultaat: "1.1", termen: ["x1"] }] };
+  const p = controleerClassificatiemodel(c, L, ["concept", "definitief"]);
+  assert.ok(p.some((x) => x.sleutel === "1.1" && x.ernst === "waarschuwing"), "zoektermen bij een uitgezet resultaat");
+  assert.ok(!p.some((x) => x.ernst === "fout"), JSON.stringify(p));
+  assert.ok(controleerClassificatiemodel({ ...c, zoektermen: [{ resultaat: "99.9", termen: ["a"] }] }, L).some((x) => x.ernst === "fout"));
+  const r = resultatenInGebruik(c, L).find((x) => x.id === "3.1");
+  assert.deepEqual(r.zoektermen, ["projectplan", "plan van aanpak"]);
+});
+
+test("ondersteunend: getoetst; de termijn loopt vanaf het classificeren", () => {
+  const o = { omschrijving: "Kopieën, kladversies en stukken ter kennisname", bewaartermijn: "P1Y", grondslag: "Richtlijn informatiebeheer 2026" };
+  const c = { ...standaardClassificatiemodel(), ondersteunend: o };
+  assert.ok(!controleerClassificatiemodel(c, L, ["definitief"]).some((x) => x.ernst === "fout"));
+  assert.equal(controleerClassificatiemodel({ ...c, ondersteunend: { ...o, grondslag: "" } }, L, ["definitief"]).filter((x) => x.sleutel === ONDERSTEUNEND).length, 1);
+  const b = bepaalBewaren(c, L, { resultaat: ONDERSTEUNEND, op: "2026-11-19T10:00:00Z" });
+  assert.equal(b.start, "classificatie");
+  assert.equal(b.archiefactiedatum, "2027-11-19");
+  assert.match(b.uitleg, /Richtlijn informatiebeheer 2026/);
+  assert.equal(bepaalBewaren(standaardClassificatiemodel(), L, { resultaat: ONDERSTEUNEND }), null, "zonder ondersteunend in het model");
+  assert.equal(ondersteunendResultaat(o).id, ONDERSTEUNEND);
 });
