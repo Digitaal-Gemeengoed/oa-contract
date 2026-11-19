@@ -366,6 +366,9 @@ export const GEBEURTENISTYPEN = [
   "delegatie.verleend",
   "delegatie.ingetrokken",
   "classificatiemodel.gepubliceerd",
+  // Een geplande versie (ingang in de toekomst) die nooit ingaat.
+  "objecttype.ingetrokken",
+  "classificatiemodel.ingetrokken",
   "classificatie.vastgelegd",
   "voorstel.ingediend",
   "voorstel.goedgekeurd",

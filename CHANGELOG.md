@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.8.2 — 2026-11-19
+
+- Gebeurtenissen `objecttype.ingetrokken` en `classificatiemodel.ingetrokken`: een geplande versie van het metadatamodel of het classificatiemodel (met een ingangsdatum in de toekomst) is ingetrokken en gaat nooit in.
+
 ## 0.8.1 — 2026-11-10
 
 **Woo: "geen categorie" als keuze.** Niet elk stuk valt in een informatiecategorie van artikel 3.3 Woo (een gespreksverslag met een inwoner bijvoorbeeld); het valt wel onder de Woo en blijft opvraagbaar.
