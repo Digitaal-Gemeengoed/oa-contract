@@ -1,5 +1,15 @@
 # Wijzigingen
 
+## 0.10.0 — 2026-11-19
+
+**Categorieën en toetsvragen voor ondersteunende stukken.**
+- `Ondersteunend` kent `categorieen` (`{ code, naam, voorbeelden, bewaartermijn }`, zoals "O3 Tussenversie, 6 maanden") en `toetsvragen`: vragen waarop het antwoord nee moet zijn, anders is het stuk niet ondersteunend. `bewaartermijn` op het hoogste niveau is nu alleen nodig zonder categorieën.
+- Met categorieën is het resultaat `ondersteunend.<code>` (`ondersteunend.O3`); zonder blijft het `ondersteunend`. `isOndersteunend()`, `ondersteunendeKlassen()`; `ondersteunendResultaat(o, resultaat?)` zoekt de klasse op.
+- `OPZET_ONDERSTEUNEND`: vijf categorieën (O1 Geen archiefbescheiden, O2 Kopie of dubbel, O3 Tussenversie, O4 Werkaantekening of hulpbestand, O5 Logistiek en routine) en vijf toetsvragen, naar de Archiefwet, de Handreiking Selectielijst 2020 en de Australische Normal Administrative Practice. Een vertrekpunt; de gemeente stelt termijnen en grondslag vast.
+- Getoetst: code (hoofdletter, hoogstens zes tekens, uniek), naam, voorbeelden en termijn per categorie; hoogstens 12 categorieën en 10 toetsvragen. Een waarschuwing zonder toetsvragen.
+- `Classificatie.toetsvragenBevestigd`: de medewerker bevestigde dat geen toetsvraag geldt.
+- `bepaalBewaren` rekent met de termijn van de categorie; de uitleg volgt de vorm van de selectielijstklassen ("Vernietigen na 19-5-2027: 6 maanden na het classificeren (grondslag).").
+
 ## 0.9.0 — 2026-11-19
 
 - **Zoektermen** in het classificatiemodel (`zoektermen: { resultaat, termen }[]`): woorden van de gemeente bij een klasse. Getoetst (bestaand resultaat, 2 tot 40 tekens, hoogstens 20 per klasse; een waarschuwing bij een uitgezet resultaat). `resultatenInGebruik` geeft ze mee als `zoektermen`.

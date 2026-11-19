@@ -10,6 +10,9 @@ import {
   isVergrendeld,
   classificatiemodelnaam,
   ONDERSTEUNEND,
+  OPZET_ONDERSTEUNEND,
+  isOndersteunend,
+  ondersteunendeKlassen,
   ondersteunendResultaat,
 } from "../dist/index.js";
 import { SELECTIELIJST_2020 as L } from "@digitaalgemeengoed/oa-contract/selectielijst";
@@ -98,11 +101,34 @@ test("ondersteunend: getoetst; de termijn loopt vanaf het classificeren", () => 
   const o = { omschrijving: "Kopieën, kladversies en stukken ter kennisname", bewaartermijn: "P1Y", grondslag: "Richtlijn informatiebeheer 2026" };
   const c = { ...standaardClassificatiemodel(), ondersteunend: o };
   assert.ok(!controleerClassificatiemodel(c, L, ["definitief"]).some((x) => x.ernst === "fout"));
-  assert.equal(controleerClassificatiemodel({ ...c, ondersteunend: { ...o, grondslag: "" } }, L, ["definitief"]).filter((x) => x.sleutel === ONDERSTEUNEND).length, 1);
+  assert.equal(controleerClassificatiemodel({ ...c, ondersteunend: { ...o, grondslag: "" } }, L, ["definitief"]).filter((x) => x.sleutel === ONDERSTEUNEND && x.ernst === "fout").length, 1);
   const b = bepaalBewaren(c, L, { resultaat: ONDERSTEUNEND, op: "2026-11-19T10:00:00Z" });
   assert.equal(b.start, "classificatie");
   assert.equal(b.archiefactiedatum, "2027-11-19");
   assert.match(b.uitleg, /Richtlijn informatiebeheer 2026/);
   assert.equal(bepaalBewaren(standaardClassificatiemodel(), L, { resultaat: ONDERSTEUNEND }), null, "zonder ondersteunend in het model");
   assert.equal(ondersteunendResultaat(o).id, ONDERSTEUNEND);
+});
+
+test("ondersteunend met categorieën en toetsvragen: de opzet klopt, elke categorie een eigen termijn", () => {
+  const c = { ...standaardClassificatiemodel(), ondersteunend: OPZET_ONDERSTEUNEND };
+  assert.deepEqual(controleerClassificatiemodel(c, L, ["definitief"]).filter((x) => x.sleutel === ONDERSTEUNEND), [], "de opzet zelf heeft geen problemen");
+  assert.deepEqual(ondersteunendeKlassen(OPZET_ONDERSTEUNEND).map((k) => [k.id, k.bewaartermijn]), [
+    ["ondersteunend.O1", "P1Y"], ["ondersteunend.O2", "P1Y"], ["ondersteunend.O3", "P6M"], ["ondersteunend.O4", "P1Y"], ["ondersteunend.O5", "P6M"],
+  ]);
+  assert.equal(ondersteunendResultaat(OPZET_ONDERSTEUNEND), undefined, "met categorieën bestaat het kale ondersteunend niet");
+  assert.ok(isOndersteunend("ondersteunend.O3") && isOndersteunend(ONDERSTEUNEND) && !isOndersteunend("1.1") && !isOndersteunend(null));
+  const b = bepaalBewaren(c, L, { resultaat: "ondersteunend.O3", op: "2026-11-19T10:00:00Z" });
+  assert.equal(b.archiefactiedatum, "2027-05-19");
+  assert.equal(b.klasse, "Ondersteunend · O3 Tussenversie");
+  assert.match(b.uitleg, /6 maanden na het classificeren/);
+  assert.equal(bepaalBewaren(c, L, { resultaat: "ondersteunend.O9" }), null);
+  // Fouten in categorieën.
+  const fout = (o) => controleerClassificatiemodel({ ...c, ondersteunend: { ...OPZET_ONDERSTEUNEND, ...o } }, L).filter((x) => x.sleutel === ONDERSTEUNEND && x.ernst === "fout");
+  const k = OPZET_ONDERSTEUNEND.categorieen;
+  assert.equal(fout({ categorieen: [...k, k[0]] }).length, 1, "dubbele code");
+  assert.equal(fout({ categorieen: [{ ...k[0], code: "o1" }] }).length, 1, "code met kleine letter");
+  assert.equal(fout({ categorieen: [{ ...k[0], bewaartermijn: "een jaar" }] }).length, 1);
+  assert.equal(fout({ toetsvragen: ["Kort?"] }).length, 1);
+  assert.ok(controleerClassificatiemodel({ ...c, ondersteunend: { ...OPZET_ONDERSTEUNEND, toetsvragen: [] } }, L).some((x) => x.sleutel === ONDERSTEUNEND && x.ernst === "waarschuwing"));
 });

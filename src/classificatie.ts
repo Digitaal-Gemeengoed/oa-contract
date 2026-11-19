@@ -106,22 +106,76 @@ export interface Zoektermen {
 }
 
 /**
+ * Een categorie ondersteunende stukken, zoals "O3 Tussenversie": een naam die
+ * de medewerker herkent, voorbeelden en een eigen korte termijn.
+ */
+export interface OndersteunendeCategorie {
+  /** Kort en vast, zoals "O3"; een hoofdletter met hoogstens vijf letters of cijfers. */
+  code: string;
+  naam: string;
+  /** Wat eronder valt, met voorbeelden; de medewerker ziet het in het paneel. */
+  voorbeelden: string;
+  /** Hoe lang na het classificeren het stuk vernietigd mag worden (ISO 8601-duur). */
+  bewaartermijn: string;
+}
+
+/**
  * Stukken zonder archiefwaarde (kopieën, kladversies, stukken ter
  * kennisname): geen klasse uit de selectielijst, maar een korte termijn die
  * de gemeente zelf vastlegt. Alleen met een grondslag: het besluit of de
  * richtlijn van de gemeente waarin staat wat hieronder valt.
+ *
+ * Met categorieën kiest de medewerker er een (elk met een eigen termijn);
+ * zonder is er één soort ondersteunend stuk met `bewaartermijn`. Met
+ * toetsvragen bevestigt de medewerker eerst dat geen ervan geldt.
  */
 export interface Ondersteunend {
   /** Wat eronder valt, in gewone taal; de medewerker ziet het in het paneel. */
   omschrijving: string;
-  /** Hoe lang na het classificeren het stuk vernietigd mag worden (ISO 8601-duur). */
-  bewaartermijn: string;
+  /** Zonder categorieën: hoe lang na het classificeren het stuk vernietigd mag worden (ISO 8601-duur). */
+  bewaartermijn?: string;
   /** Het besluit of de richtlijn van de gemeente. */
   grondslag: string;
+  categorieen?: OndersteunendeCategorie[];
+  /** Vragen waarop het antwoord "nee" moet zijn; is het bij een ervan "ja", dan is het stuk niet ondersteunend. */
+  toetsvragen?: string[];
 }
 
-/** De klasse voor ondersteunende stukken; de selectielijst gebruikt alleen nummers. */
+/** De klasse voor ondersteunende stukken; de selectielijst gebruikt alleen nummers. Met een categorie: "ondersteunend.O3". */
 export const ONDERSTEUNEND = "ondersteunend";
+export const CATEGORIEEN_MAX = 12;
+export const TOETSVRAGEN_MAX = 10;
+const CODE = /^[A-Z][A-Z0-9]{0,5}$/;
+
+/** Of dit resultaat een ondersteunende klasse is ("ondersteunend" of "ondersteunend.O3"). */
+export function isOndersteunend(resultaat: string | null | undefined): boolean {
+  return !!resultaat && (resultaat === ONDERSTEUNEND || resultaat.startsWith(`${ONDERSTEUNEND}.`));
+}
+
+/**
+ * Een vertrekpunt voor informatiebeheerders: vijf categorieën en vijf
+ * toetsvragen, naar de Archiefwet (art. 1c), de Handreiking Selectielijst 2020
+ * (§4.4), Het kaf en het koren (2024) en de Australische Normal Administrative
+ * Practice. De termijnen zijn een voorstel; de gemeente stelt ze vast.
+ */
+export const OPZET_ONDERSTEUNEND: Ondersteunend = {
+  omschrijving: "Stukken die niet bij een proces horen en geen archiefwaarde hebben. Twijfel je, kies dan een klasse uit de selectielijst.",
+  grondslag: "Opzet ondersteunende informatie, Office Assistent 2026 (vertrekpunt, niet vastgesteld)",
+  categorieen: [
+    { code: "O1", naam: "Geen archiefbescheiden", voorbeelden: "Reclame, nieuwsbrieven, abonnementen en vakbladen; rapporten en publicaties van anderen; gedownloade openbare stukken zoals wetten, normen en handreikingen.", bewaartermijn: "P1Y" },
+    { code: "O2", naam: "Kopie of dubbel", voorbeelden: "Een kopie van een stuk dat elders is vastgelegd (in een zaak, het DMS of bij de afzender); een afdruk; een bijlage die ook in het DMS staat.", bewaartermijn: "P1Y" },
+    { code: "O3", naam: "Tussenversie", voorbeelden: "Een versie die niet, of alleen binnen het eigen team, is gedeeld, van een stuk waarvan een latere versie elders is vastgelegd.", bewaartermijn: "P6M" },
+    { code: "O4", naam: "Werkaantekening of hulpbestand", voorbeelden: "Eigen notities, een rekenblad voor een berekening, gespreksvoorbereiding, aantekeningen bij een overleg zonder afspraken.", bewaartermijn: "P1Y" },
+    { code: "O5", naam: "Logistiek en routine", voorbeelden: "Vergaderuitnodigingen, zaalreserveringen, afstemming over planning, ontvangstbevestigingen.", bewaartermijn: "P6M" },
+  ],
+  toetsvragen: [
+    "Is het stuk ter besluitvorming voorgelegd, of staat er een besluit, afspraak of toezegging in?",
+    "Volgen er rechten of plichten uit, voor een inwoner, een bedrijf of de gemeente (een handtekening, een overeenkomst)?",
+    "Is het het enige exemplaar van iets dat nergens anders is vastgelegd, zoals opmerkingen die in de eindversie ontbreken?",
+    "Is het gebruikt bij de afhandeling van een zaak? Dan volgt het de klasse van de zaak.",
+    "Loopt er een Woo-verzoek, bezwaar, klacht of procedure waarvoor het van belang kan zijn?",
+  ],
+};
 
 export interface ClassificatiemodelConfig {
   naam?: string;
@@ -155,6 +209,8 @@ export interface Classificatie {
   attributen?: Record<string, string | boolean>;
   /** Bij procestermijn "procesobject" of "vervaldatum": de dag waarop de termijn ingaat. */
   einddatumProcesobject?: string;
+  /** Bij een ondersteunend stuk: de medewerker bevestigde dat geen van de toetsvragen geldt. */
+  toetsvragenBevestigd?: boolean;
   door?: string;
   op?: string;
 }
@@ -228,9 +284,26 @@ export function controleerClassificatiemodel(c: ClassificatiemodelConfig, lijst:
   }
   if (c.ondersteunend) {
     const o = c.ondersteunend;
-    if ((o.omschrijving ?? "").trim().length < 10) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: beschrijf wat eronder valt (minstens tien tekens); de medewerker ziet het in het paneel." });
-    if (!DUUR.test(o.bewaartermijn ?? "")) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: de bewaartermijn is geen geldige duur." });
-    if ((o.grondslag ?? "").trim().length < 5) p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: "Ondersteunende stukken: noem de grondslag, het besluit of de richtlijn van de gemeente waarin staat wat hieronder valt." });
+    const fout = (melding: string) => p.push({ sleutel: ONDERSTEUNEND, ernst: "fout", melding: `Ondersteunende stukken: ${melding}` });
+    if ((o.omschrijving ?? "").trim().length < 10) fout("beschrijf wat eronder valt (minstens tien tekens); de medewerker ziet het in het paneel.");
+    if ((o.grondslag ?? "").trim().length < 5) fout("noem de grondslag, het besluit of de richtlijn van de gemeente waarin staat wat hieronder valt.");
+    const cats = o.categorieen ?? [];
+    if (!cats.length && !DUUR.test(o.bewaartermijn ?? "")) fout("de bewaartermijn is geen geldige duur.");
+    if (cats.length > CATEGORIEEN_MAX) fout(`hoogstens ${CATEGORIEEN_MAX} categorieën.`);
+    const codes = new Set<string>();
+    for (const k of cats) {
+      const wie = k.code || "(zonder code)";
+      if (!CODE.test(k.code ?? "")) fout(`de code "${k.code ?? ""}" is een hoofdletter met hoogstens vijf letters of cijfers, zoals O3.`);
+      if (codes.has(k.code)) fout(`de code ${k.code} staat er twee keer in.`);
+      codes.add(k.code);
+      if ((k.naam ?? "").trim().length < 3) fout(`${wie} heeft geen naam.`);
+      if ((k.voorbeelden ?? "").trim().length < 10) fout(`${wie}: noem wat eronder valt (minstens tien tekens).`);
+      if (!DUUR.test(k.bewaartermijn ?? "")) fout(`${wie}: de bewaartermijn is geen geldige duur.`);
+    }
+    const vragen = o.toetsvragen ?? [];
+    if (vragen.length > TOETSVRAGEN_MAX) fout(`hoogstens ${TOETSVRAGEN_MAX} toetsvragen.`);
+    for (const [i, v] of vragen.entries()) if ((v ?? "").trim().length < 10) fout(`toetsvraag ${i + 1} is te kort.`);
+    if (!vragen.length) p.push({ sleutel: ONDERSTEUNEND, ernst: "waarschuwing", melding: "Ondersteunende stukken: zonder toetsvragen kiest de medewerker zonder eerst na te gaan of het stuk toch ergens bij hoort." });
   }
   const gezien = new Set<string>();
   for (const at of c.attributen ?? []) {
@@ -260,20 +333,23 @@ export function resultatenInGebruik(c: ClassificatiemodelConfig, lijst: Selectie
     });
 }
 
-/** Ondersteunend als klasse, zodat het paneel en het bewaren er hetzelfde mee kunnen als met een resultaat. */
-export function ondersteunendResultaat(o: Ondersteunend): SelectielijstResultaat {
-  return {
-    id: ONDERSTEUNEND,
-    procestype: 0,
-    generiek: null,
-    naam: "Ondersteunend",
-    omschrijving: "zonder archiefwaarde",
-    waardering: "vernietigen",
-    procestermijn: "nihil",
-    bewaartermijn: o.bewaartermijn,
-    toelichting: o.omschrijving,
-    herkomst: o.grondslag,
-  };
+/**
+ * Ondersteunend als klasse, zodat het paneel en het bewaren er hetzelfde mee
+ * kunnen als met een resultaat. Zonder categorieën één klasse
+ * ("ondersteunend"), anders één per categorie ("ondersteunend.O3").
+ */
+export function ondersteunendeKlassen(o: Ondersteunend | null | undefined): SelectielijstResultaat[] {
+  if (!o) return [];
+  const basis = { procestype: 0, generiek: null, waardering: "vernietigen" as const, procestermijn: "nihil" as const, herkomst: o.grondslag };
+  if (!o.categorieen?.length) {
+    return [{ ...basis, id: ONDERSTEUNEND, naam: "Ondersteunend", omschrijving: "zonder archiefwaarde", bewaartermijn: o.bewaartermijn, toelichting: o.omschrijving }];
+  }
+  return o.categorieen.map((k) => ({ ...basis, id: `${ONDERSTEUNEND}.${k.code}`, naam: k.naam, omschrijving: k.code, bewaartermijn: k.bewaartermijn, toelichting: k.voorbeelden }));
+}
+
+/** De ondersteunende klasse met dit resultaat, als het model haar kent. */
+export function ondersteunendResultaat(o: Ondersteunend | null | undefined, resultaat: string = ONDERSTEUNEND): SelectielijstResultaat | undefined {
+  return ondersteunendeKlassen(o).find((k) => k.id === resultaat);
 }
 
 /** Of een stuk met deze status vergrendeld is. */
@@ -345,15 +421,15 @@ export function bepaalBewaren(
   classificatie: Pick<Classificatie, "resultaat" | "einddatumProcesobject" | "op">,
   statusdata: Record<string, string> = {},
 ): Bewaren | null {
-  if (classificatie.resultaat === ONDERSTEUNEND) {
-    const o = c.ondersteunend;
-    if (!o) return null;
-    const basis = { resultaat: ONDERSTEUNEND, klasse: "Ondersteunend, zonder archiefwaarde", waardering: "vernietigen" as const, bewaartermijn: o.bewaartermijn, start: "classificatie" as const };
-    const termijn = duurInWoorden(o.bewaartermijn);
+  if (isOndersteunend(classificatie.resultaat)) {
+    const k = ondersteunendResultaat(c.ondersteunend, classificatie.resultaat);
+    if (!k?.bewaartermijn) return null;
+    const basis = { resultaat: k.id, klasse: k.id === ONDERSTEUNEND ? "Ondersteunend, zonder archiefwaarde" : `Ondersteunend · ${k.omschrijving} ${k.naam}`, waardering: "vernietigen" as const, bewaartermijn: k.bewaartermijn, start: "classificatie" as const };
+    const termijn = duurInWoorden(k.bewaartermijn);
     const brondatum = classificatie.op?.slice(0, 10);
-    if (!brondatum) return { ...basis, uitleg: `Ondersteunend: vernietigen ${termijn} na het classificeren (${o.grondslag}).` };
-    const archiefactiedatum = telOp(brondatum, o.bewaartermijn);
-    return { ...basis, brondatum, archiefactiedatum, uitleg: `Ondersteunend: vernietigen na ${nl(archiefactiedatum)}, ${termijn} na het classificeren (${o.grondslag}).` };
+    if (!brondatum) return { ...basis, uitleg: `Vernietigen ${termijn} na het classificeren (${k.herkomst}).` };
+    const archiefactiedatum = telOp(brondatum, k.bewaartermijn);
+    return { ...basis, brondatum, archiefactiedatum, uitleg: `Vernietigen na ${nl(archiefactiedatum)}: ${termijn} na het classificeren (${k.herkomst}).` };
   }
   const r = resultatenInGebruik({ ...c, uitgezet: [] }, lijst).find((x) => x.id === classificatie.resultaat);
   if (!r) return null;
