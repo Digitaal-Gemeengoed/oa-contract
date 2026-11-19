@@ -11,6 +11,11 @@ import {
   classificatiemodelnaam,
   ONDERSTEUNEND,
   OPZET_ONDERSTEUNEND,
+  STANDAARDATTRIBUTEN,
+  attribuutGeldt,
+  nieuwStandaardAttribuut,
+  standaardVan,
+  voorstelPersoonsgegevens,
   isOndersteunend,
   ondersteunendeKlassen,
   ondersteunendResultaat,
@@ -131,4 +136,35 @@ test("ondersteunend met categorieën en toetsvragen: de opzet klopt, elke catego
   assert.equal(fout({ categorieen: [{ ...k[0], bewaartermijn: "een jaar" }] }).length, 1);
   assert.equal(fout({ toetsvragen: ["Kort?"] }).length, 1);
   assert.ok(controleerClassificatiemodel({ ...c, ondersteunend: { ...OPZET_ONDERSTEUNEND, toetsvragen: [] } }, L).some((x) => x.sleutel === ONDERSTEUNEND && x.ernst === "waarschuwing"));
+});
+
+test("standaardattributen: vaste sleutel en soort, aanpasbare keuzes, koppeling voor het voorstel", () => {
+  const sleutels = STANDAARDATTRIBUTEN.map((x) => x.sleutel);
+  assert.equal(new Set(sleutels).size, sleutels.length, "elke sleutel één keer");
+  const pg = nieuwStandaardAttribuut("persoonsgegevens");
+  assert.equal(pg.standaard, "persoonsgegevens");
+  assert.equal(pg.koppeling.bsn, "Met BSN");
+  const c = { ...standaardClassificatiemodel(), attributen: STANDAARDATTRIBUTEN.map((x) => nieuwStandaardAttribuut(x.sleutel)) };
+  assert.deepEqual(controleerClassificatiemodel(c, L, ["definitief"]), [], "de catalogus zelf klopt");
+  const fout = (a) => controleerClassificatiemodel({ ...c, attributen: [a] }, L, ["definitief"]);
+  // Label en keuzes aanpassen mag; de koppeling moet blijven kloppen.
+  const eigen = { ...pg, label: "AVG", opties: ["Nee", "Ja", "Ja, met BSN"], koppeling: { geen: "Nee", gewoon: "Ja", bsn: "Ja, met BSN" } };
+  assert.deepEqual(fout(eigen), []);
+  assert.ok(fout({ ...eigen, koppeling: { ...eigen.koppeling, bsn: "Met BSN" } }).some((p) => p.ernst === "fout" && /niet \(meer\)/.test(p.melding)));
+  assert.ok(fout({ ...eigen, koppeling: { geen: "Nee", gewoon: "Ja" } }).some((p) => p.ernst === "waarschuwing"));
+  assert.ok(fout({ ...pg, type: "tekst" }).some((p) => p.ernst === "fout"), "soort ligt vast");
+  assert.ok(fout({ ...pg, sleutel: "avg" }).some((p) => p.ernst === "fout"), "sleutel ligt vast");
+  assert.ok(fout({ sleutel: "hotspot", label: "Hotspot", type: "ja-nee", verplicht: false }).some((p) => p.ernst === "fout"), "eigen attribuut met een gereserveerde sleutel");
+  // Openbaarheidsbeperking alleen bij blijvend bewaren.
+  const ob = nieuwStandaardAttribuut("openbaarheidsbeperking");
+  assert.equal(attribuutGeldt(ob, "vernietigen"), false);
+  assert.equal(attribuutGeldt(ob, "blijvend-bewaren"), true);
+  assert.equal(attribuutGeldt({ sleutel: "x" }, "vernietigen"), true);
+  assert.equal(standaardVan(ob).groep, "Archief");
+  // Het voorstel.
+  assert.deepEqual(voorstelPersoonsgegevens(eigen, ["naam", "bsn"]), { waarde: "Ja, met BSN", code: "bsn" });
+  assert.deepEqual(voorstelPersoonsgegevens(eigen, ["adres"]), { waarde: "Ja", code: "gewoon" });
+  assert.deepEqual(voorstelPersoonsgegevens(eigen, ["zaaknummer"]), { waarde: "Nee", code: "geen" });
+  assert.equal(voorstelPersoonsgegevens({ ...eigen, koppeling: {} }, ["bsn"]), null);
+  assert.equal(voorstelPersoonsgegevens(ob, ["bsn"]), null);
 });

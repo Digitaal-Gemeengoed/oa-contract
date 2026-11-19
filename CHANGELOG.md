@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.11.0 — 2026-11-19
+
+**Standaardattributen.** Attributen met een vaste betekenis, bij elke gemeente hetzelfde, zodat de assistent er iets mee kan.
+- `STANDAARDATTRIBUTEN`: persoonsgegevens (AVG), beschikbaarheid, integriteit en vertrouwelijkheid (BIV, BIO), juridische bewaarplicht, openbaarheidsbeperking, hotspot en vitale informatie. Elk met groep, label, soort, keuzes, hulptekst, toelichting en bron.
+- `ClassificatieAttribuut.standaard` en `.koppeling`: de gemeente zet een standaardattribuut aan (`nieuwStandaardAttribuut`) en past label, keuzes, hulptekst en verplicht aan; sleutel en soort liggen vast. De koppeling zegt welke keuze bij welke betekenis hoort ("de assistent vond een BSN" → "Met BSN").
+- Getoetst: vaste sleutel en soort, een koppeling naar een keuze die niet (meer) bestaat (fout) of ontbreekt (waarschuwing), en een eigen attribuut met de sleutel van een standaardattribuut (fout).
+- `attribuutGeldt`: de openbaarheidsbeperking geldt alleen bij blijvend bewaren. `voorstelPersoonsgegevens`: de keuze bij wat de herkenning van persoonsgegevens vond (BSN, andere gegevens, niets). `standaardVan`.
+
 ## 0.10.0 — 2026-11-19
 
 **Categorieën en toetsvragen voor ondersteunende stukken.**

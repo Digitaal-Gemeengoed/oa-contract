@@ -85,6 +85,162 @@ export interface ClassificatieAttribuut {
   opties?: string[];
   verplicht: boolean;
   beschrijving?: string;
+  /**
+   * Een standaardattribuut uit de catalogus (`STANDAARDATTRIBUTEN`): de
+   * sleutel en de betekenis staan vast, label, keuzes, hulptekst en verplicht
+   * past de gemeente aan. Gelijk aan de sleutel.
+   */
+  standaard?: string;
+  /** Bij een standaardattribuut met vaste betekenissen: welke keuze van de gemeente bij welke betekenis hoort. */
+  koppeling?: Record<string, string>;
+}
+
+/**
+ * Een attribuut dat bij elke gemeente hetzelfde betekent. Omdat de betekenis
+ * vaststaat, kan de assistent er iets mee: een waarde voorstellen, het
+ * alleen vragen waar het geldt, of het meenemen bij overbrengen.
+ */
+export interface StandaardAttribuut {
+  sleutel: string;
+  groep: "Privacy" | "Informatiebeveiliging" | "Archief" | "Continuïteit";
+  label: string;
+  type: AttribuutType;
+  opties?: string[];
+  /** De hulptekst voor de medewerker. */
+  beschrijving: string;
+  /** Voor informatiebeheer: wat het is en waarvoor. */
+  toelichting: string;
+  bron: string;
+  /** Alleen vragen bij stukken die blijvend bewaard worden. */
+  alleenBijBlijvend?: boolean;
+  /** Waarden met een vaste betekenis; `standaard` is de keuze die er in de catalogus bij hoort. */
+  betekenissen?: { code: string; uitleg: string; standaard: string }[];
+}
+
+export const STANDAARDATTRIBUTEN: readonly StandaardAttribuut[] = [
+  {
+    sleutel: "persoonsgegevens",
+    groep: "Privacy",
+    label: "Persoonsgegevens",
+    type: "keuze",
+    opties: ["Geen persoonsgegevens", "Gewone persoonsgegevens", "Met BSN", "Bijzondere persoonsgegevens (AVG art. 9)", "Strafrechtelijke gegevens (AVG art. 10)"],
+    beschrijving: "Kies de zwaarste soort die in het stuk voorkomt.",
+    toelichting: "Of het stuk persoonsgegevens bevat, en welke. De assistent zoekt namen, adressen, BSN's en andere gegevens en stelt een keuze voor; de medewerker beslist. Bijzondere en strafrechtelijke gegevens herkent de assistent niet.",
+    bron: "AVG art. 4, 9 en 10; Uitvoeringswet AVG art. 46 (BSN)",
+    betekenissen: [
+      { code: "geen", uitleg: "De assistent vond geen persoonsgegevens", standaard: "Geen persoonsgegevens" },
+      { code: "gewoon", uitleg: "De assistent vond persoonsgegevens, geen BSN", standaard: "Gewone persoonsgegevens" },
+      { code: "bsn", uitleg: "De assistent vond een BSN", standaard: "Met BSN" },
+    ],
+  },
+  {
+    sleutel: "bivBeschikbaarheid",
+    groep: "Informatiebeveiliging",
+    label: "Beschikbaarheid (BIV)",
+    type: "keuze",
+    opties: ["laag", "midden", "hoog"],
+    beschrijving: "Hoe erg is het als dit stuk een tijd niet beschikbaar is?",
+    toelichting: "De B van de BIV-classificatie. De BIO stelt BIV meestal vast per proces of informatiesysteem; per stuk is het vooral nuttig als uitzondering.",
+    bron: "Baseline Informatiebeveiliging Overheid (BIO)",
+  },
+  {
+    sleutel: "bivIntegriteit",
+    groep: "Informatiebeveiliging",
+    label: "Integriteit (BIV)",
+    type: "keuze",
+    opties: ["laag", "midden", "hoog"],
+    beschrijving: "Hoe erg is het als dit stuk onopgemerkt verandert?",
+    toelichting: "De I van de BIV-classificatie.",
+    bron: "Baseline Informatiebeveiliging Overheid (BIO)",
+  },
+  {
+    sleutel: "bivVertrouwelijkheid",
+    groep: "Informatiebeveiliging",
+    label: "Vertrouwelijkheid (BIV)",
+    type: "keuze",
+    opties: ["laag", "midden", "hoog"],
+    beschrijving: "Hoe erg is het als dit stuk bij de verkeerde persoon komt?",
+    toelichting: "De V van de BIV-classificatie. Let op: het metadatamodel kent vaak al een vertrouwelijkheidsaanduiding. Zet dit alleen aan als die iets anders vastlegt, anders staat hetzelfde twee keer vast.",
+    bron: "Baseline Informatiebeveiliging Overheid (BIO)",
+  },
+  {
+    sleutel: "juridischeBewaarplicht",
+    groep: "Archief",
+    label: "Juridische bewaarplicht",
+    type: "keuze",
+    opties: ["Geen", "Woo-verzoek", "Bezwaar of beroep", "Klacht", "Andere procedure"],
+    beschrijving: "Loopt er iets waarvoor het stuk bewaard moet blijven, ook na de bewaartermijn?",
+    toelichting: "Een lopend Woo-verzoek, bezwaar, klacht of procedure waarvoor het stuk van belang is. Zolang dat loopt, mag het niet vernietigd worden, ook niet na de bewaartermijn.",
+    bron: "Woo; Algemene wet bestuursrecht",
+    betekenissen: [{ code: "geen", uitleg: "Er loopt niets", standaard: "Geen" }],
+  },
+  {
+    sleutel: "openbaarheidsbeperking",
+    groep: "Archief",
+    label: "Openbaarheidsbeperking",
+    type: "keuze",
+    opties: ["Geen beperking", "Eerbiediging van de persoonlijke levenssfeer", "Belang van de Staat of zijn bondgenoten", "Voorkomen van onevenredige bevoordeling of benadeling"],
+    beschrijving: "Moet de openbaarheid beperkt worden als het stuk naar het archief gaat?",
+    toelichting: "Bij overbrenging naar de archiefbewaarplaats kan de openbaarheid tijdelijk worden beperkt, op een van de gronden uit de Archiefwet.",
+    bron: "Archiefwet, openbaarheidsbeperkingen bij overbrenging",
+    alleenBijBlijvend: true,
+  },
+  {
+    sleutel: "hotspot",
+    groep: "Archief",
+    label: "Hotspot",
+    type: "ja-nee",
+    beschrijving: "Hoort het stuk bij een gebeurtenis die de gemeente als hotspot heeft aangewezen?",
+    toelichting: "Een hotspot is een gebeurtenis of kwestie met grote maatschappelijke betekenis. Stukken daarover kunnen blijvend bewaard worden, ook als de selectielijst vernietigen zegt.",
+    bron: "Selectielijst gemeenten 2020, toelichting (hotspots)",
+  },
+  {
+    sleutel: "vitaleInformatie",
+    groep: "Continuïteit",
+    label: "Vitale informatie",
+    type: "ja-nee",
+    beschrijving: "Is dit stuk nodig om de gemeente na een calamiteit weer aan het werk te krijgen?",
+    toelichting: "Informatie die nodig is voor de continuïteit van de dienstverlening, zoals noodplannen, sleutelregisters en contracten met leveranciers.",
+    bron: "BIO, bedrijfscontinuïteit",
+  },
+];
+
+/** Het standaardattribuut achter dit attribuut, als het er een is. */
+export function standaardVan(at: Pick<ClassificatieAttribuut, "standaard">): StandaardAttribuut | undefined {
+  return at.standaard ? STANDAARDATTRIBUTEN.find((s) => s.sleutel === at.standaard) : undefined;
+}
+
+/** Een standaardattribuut aanzetten: met de keuzes en de koppeling uit de catalogus. */
+export function nieuwStandaardAttribuut(sleutel: string): ClassificatieAttribuut {
+  const s = STANDAARDATTRIBUTEN.find((x) => x.sleutel === sleutel);
+  if (!s) throw new Error(`Onbekend standaardattribuut: ${sleutel}`);
+  return {
+    sleutel: s.sleutel,
+    standaard: s.sleutel,
+    label: s.label,
+    type: s.type,
+    ...(s.opties ? { opties: [...s.opties] } : {}),
+    verplicht: false,
+    beschrijving: s.beschrijving,
+    ...(s.betekenissen ? { koppeling: Object.fromEntries(s.betekenissen.map((b) => [b.code, b.standaard])) } : {}),
+  };
+}
+
+/** Of het attribuut voor deze klasse gevraagd wordt (sommige alleen bij blijvend bewaren). */
+export function attribuutGeldt(at: Pick<ClassificatieAttribuut, "standaard">, waardering: Waardering | undefined | null): boolean {
+  return !standaardVan(at)?.alleenBijBlijvend || waardering === "blijvend-bewaren";
+}
+
+/**
+ * Het voorstel voor het attribuut persoonsgegevens, uit wat de assistent in
+ * het stuk vond (de soorten van de treffers: naam, bsn, adres, ...). Null als
+ * de gemeente de betekenis niet aan een keuze koppelde.
+ */
+export function voorstelPersoonsgegevens(at: ClassificatieAttribuut, soorten: readonly string[]): { waarde: string; code: "geen" | "gewoon" | "bsn" } | null {
+  if (at.standaard !== "persoonsgegevens") return null;
+  const code = soorten.includes("bsn") ? "bsn" : soorten.some((s) => s !== "zaaknummer") ? "gewoon" : "geen";
+  const waarde = at.koppeling?.[code];
+  return waarde && at.opties?.includes(waarde) ? { waarde, code } : null;
 }
 
 /** Een gemotiveerde afwijking van de selectielijst voor één resultaat. */
@@ -307,6 +463,21 @@ export function controleerClassificatiemodel(c: ClassificatiemodelConfig, lijst:
   }
   const gezien = new Set<string>();
   for (const at of c.attributen ?? []) {
+    const st = STANDAARDATTRIBUTEN.find((x) => x.sleutel === (at.standaard ?? at.sleutel));
+    if (at.standaard) {
+      if (!st) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `"${at.standaard}" is geen standaardattribuut.` });
+      else {
+        if (at.sleutel !== st.sleutel) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `Het standaardattribuut ${st.label} heeft de vaste sleutel "${st.sleutel}".` });
+        if (at.type !== st.type) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `${at.label || st.label}: de soort van een standaardattribuut ligt vast (${st.type}).` });
+        for (const b of st.betekenissen ?? []) {
+          const k = at.koppeling?.[b.code];
+          if (!k) p.push({ sleutel: at.sleutel, ernst: "waarschuwing", melding: `${at.label || st.label}: geen keuze gekoppeld aan "${b.uitleg}"; daar doet de assistent dan geen voorstel.` });
+          else if (!at.opties?.includes(k)) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `${at.label || st.label}: "${k}" staat niet (meer) tussen de keuzes; koppel "${b.uitleg}" aan een andere keuze.` });
+        }
+      }
+    } else if (st) {
+      p.push({ sleutel: at.sleutel, ernst: "fout", melding: `De sleutel "${at.sleutel}" hoort bij het standaardattribuut ${st.label}. Zet dat aan in plaats van een eigen attribuut.` });
+    }
     if (!SLEUTEL.test(at.sleutel)) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `De sleutel "${at.sleutel}" mag alleen letters en cijfers bevatten, begint met een kleine letter en is 2 tot 40 tekens.` });
     if (gezien.has(at.sleutel)) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `Het attribuut "${at.sleutel}" staat er twee keer in.` });
     gezien.add(at.sleutel);
