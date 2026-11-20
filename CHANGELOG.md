@@ -1,5 +1,14 @@
 # Wijzigingen
 
+## 0.13.0 — 2026-11-20
+
+**Documenteigenschappen en het opmaakprofiel Titel.**
+- `TITEL_ATTRIBUUT` en `TITEL_WAARDE`: een regel met het opmaakprofiel Titel staat in de html als `<h1 data-oa-stijl="titel">`.
+- `STANDAARDEIGENSCHAPPEN` (titel, onderwerp, trefwoorden, auteur, omschrijving, categorie, status, taal), `Standaardeigenschap` en `Documenteigenschappen` (standaard en eigen).
+- Optionele vermogens `eigenschappen-lezen` en `standaardeigenschap-schrijven`, met `Adapter.leesEigenschappen()` en `Adapter.schrijfStandaardeigenschap()`.
+- `Voorstel.eigenschap`: een herstel dat een documenteigenschap zet in plaats van de tekst te wijzigen.
+- `EIGENSCHAP_VAN_ROL`: welke standaardeigenschap bij een rol uit het metadatamodel hoort.
+
 ## 0.12.0 — 2026-11-20
 
 **Het classificatiemodel reageert op de status.**

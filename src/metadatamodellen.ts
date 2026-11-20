@@ -23,6 +23,20 @@ export type ModelId = "mdto" | "rgbz" | "tmlo";
 export const ROLLEN = ["titel", "omschrijving", "informatiecategorie", "vertrouwelijkheid", "taal", "zaak", "dossier", "auteur", "datum", "trefwoorden", "status"] as const;
 export type Rol = (typeof ROLLEN)[number];
 
+/**
+ * Welke standaardeigenschap van het bestand bij een rol hoort. Velden zonder
+ * standaardeigenschap gaan als eigen eigenschap mee, onder hun label.
+ */
+export const EIGENSCHAP_VAN_ROL: Partial<Record<Rol, "titel" | "omschrijving" | "trefwoorden" | "auteur" | "taal" | "status" | "categorie">> = {
+  titel: "titel",
+  omschrijving: "omschrijving",
+  trefwoorden: "trefwoorden",
+  auteur: "auteur",
+  taal: "taal",
+  status: "status",
+  informatiecategorie: "categorie",
+};
+
 export type VeldType = "tekst" | "lange-tekst" | "datum" | "keuze" | "getal";
 
 export interface Waardelijst {

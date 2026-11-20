@@ -17,6 +17,16 @@ export const CONTRACT_VERSIE = "0.2.0";
 
 export type Formaat = "html" | "tekst" | "docx" | "xlsx" | "pptx" | "odt" | "ods" | "odp" | "pdf" | "eml";
 
+/**
+ * De html van een tekstverwerker volgt de opmaakprofielen: Kop 1 tot en met 6
+ * worden <h1> tot en met <h6>. Een regel met het opmaakprofiel Titel wordt
+ * <h1 data-oa-stijl="titel">: voor de structuur een kop 1, maar herkenbaar
+ * als de titel van het document. Een adapter die zo'n element terugzet,
+ * gebruikt weer het opmaakprofiel Titel.
+ */
+export const TITEL_ATTRIBUUT = "data-oa-stijl";
+export const TITEL_WAARDE = "titel";
+
 export interface Inhoud {
   formaat: Formaat;
   mediaType: string;
@@ -54,7 +64,28 @@ export const OPTIONELE_VERMOGENS = [
   "pii-klik",
   /** Een documenteigenschap schrijven die de medewerker ziet (bv. Versie). */
   "eigenschap-schrijven",
+  /** De documenteigenschappen lezen: titel, auteur, trefwoorden … en de eigen eigenschappen. */
+  "eigenschappen-lezen",
+  /** Een standaardeigenschap schrijven (titel, onderwerp, trefwoorden, auteur …). */
+  "standaardeigenschap-schrijven",
 ] as const;
+
+/**
+ * De standaardeigenschappen van een document, die elk programma kent en die
+ * meegaan naar PDF/A (XMP) en zoekmachines. In Word: Bestand → Info →
+ * Eigenschappen; in LibreOffice: Bestand → Eigenschappen → Beschrijving.
+ * Niet elke werkomgeving kent ze allemaal (Word heeft geen taal en status
+ * via Office.js, LibreOffice geen categorie en status): wat ontbreekt, slaat
+ * de adapter over.
+ */
+export const STANDAARDEIGENSCHAPPEN = ["titel", "onderwerp", "trefwoorden", "auteur", "omschrijving", "categorie", "status", "taal"] as const;
+export type Standaardeigenschap = (typeof STANDAARDEIGENSCHAPPEN)[number];
+
+export interface Documenteigenschappen {
+  standaard: Partial<Record<Standaardeigenschap, string>>;
+  /** Eigen (aangepaste) eigenschappen, zoals Identificatie en Versie. */
+  eigen: Record<string, string>;
+}
 
 export type Basisvermogen = (typeof BASISVERMOGENS)[number];
 export type OptioneelVermogen = (typeof OPTIONELE_VERMOGENS)[number];
@@ -151,6 +182,10 @@ export interface Adapter {
   bijPiiKlik?(terugroep: (plek: PiiPlek) => void): () => void;
   /** Een documenteigenschap die de medewerker in het bestand ziet ("eigenschap-schrijven"). */
   schrijfDocumenteigenschap?(naam: string, waarde: string): Promise<void>;
+  /** Alle documenteigenschappen ("eigenschappen-lezen"). */
+  leesEigenschappen?(): Promise<Documenteigenschappen>;
+  /** Eén standaardeigenschap ("standaardeigenschap-schrijven"); leeg maakt haar leeg. */
+  schrijfStandaardeigenschap?(naam: Standaardeigenschap, waarde: string): Promise<void>;
 }
 
 /** Wat de werkomgeving in het document zet. */
@@ -215,6 +250,11 @@ export interface Voorstel {
   vervanging?: string;
   /** Het voorstel vraagt invoer van de medewerker, bv. een alternatieve tekst. */
   vraag?: { label: string; veld: string };
+  /**
+   * Het herstel schrijft een documenteigenschap in plaats van de inhoud te
+   * wijzigen. Zonder waarde komt die uit het antwoord op de vraag.
+   */
+  eigenschap?: { naam: Standaardeigenschap; waarde?: string };
 }
 
 export interface Bevinding {
