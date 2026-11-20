@@ -28,9 +28,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/digitaalgemeengoed/oa-contract.git"
+    "url": "git+https://github.com/Digitaal-Gemeengoed/oa-contract.git"
   },
-  "homepage": "https://github.com/digitaalgemeengoed/oa-contract#readme",
+  "homepage": "https://github.com/Digitaal-Gemeengoed/oa-contract#readme",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   }
