@@ -93,6 +93,8 @@ export interface ClassificatieAttribuut {
   standaard?: string;
   /** Bij een standaardattribuut met vaste betekenissen: welke keuze van de gemeente bij welke betekenis hoort. */
   koppeling?: Record<string, string>;
+  /** Verplicht zodra het stuk een van deze statussen heeft of krijgt (ook als `verplicht` uit staat). */
+  verplichtBij?: string[];
 }
 
 /**
@@ -347,6 +349,65 @@ export interface ClassificatiemodelConfig {
   vergrendelBij: string[];
   /** De status waarop de bewaartermijn ingaat (de brondatum), meestal "definitief". */
   termijnStartBij: string;
+  /** Een stuk krijgt deze statussen alleen als het geclassificeerd is. */
+  classificerenVerplichtBij?: string[];
+  /**
+   * Krijgt een stuk een van deze statussen, dan krijgen alle stukken in
+   * dezelfde zaak (of, zonder zaak, hetzelfde dossier) die status ook: een
+   * zaak of dossier sluit je in één keer af.
+   */
+  doorgevenBij?: string[];
+  /** Per status de klassen die de assistent voorstelt, zoals Afgebroken bij "geannuleerd". */
+  statusKlassen?: StatusKlassen[];
+}
+
+/** Bij een status: de namen van resultaten uit de selectielijst die de assistent voorstelt. */
+export interface StatusKlassen {
+  status: string;
+  /** Namen van resultaten, zoals "Afgebroken"; binnen het procestype van het stuk. */
+  namen: string[];
+}
+
+/** Een vertrekpunt voor een status als "geannuleerd" of "ingetrokken". */
+export const STATUSKLASSEN_OPZET = ["Afgebroken", "Ingetrokken", "Niet doorgegaan"];
+
+/** Of een attribuut verplicht is bij deze status. */
+export function attribuutVerplicht(at: Pick<ClassificatieAttribuut, "verplicht" | "verplichtBij">, status: string | null | undefined): boolean {
+  return at.verplicht || (!!status && !!at.verplichtBij?.includes(status));
+}
+
+/**
+ * Wat er ontbreekt voordat een stuk deze status kan krijgen: een
+ * classificatie, of attributen die bij die status verplicht zijn. Leeg als
+ * het stuk de status mag krijgen.
+ */
+export function ontbreektVoorStatus(
+  c: ClassificatiemodelConfig,
+  lijst: Selectielijst,
+  status: string | null | undefined,
+  classificatie: Pick<Classificatie, "resultaat" | "attributen"> | null | undefined,
+): string[] {
+  if (!status) return [];
+  const bijStatus = c.attributen.filter((a) => a.verplichtBij?.includes(status));
+  const moet = !!c.classificerenVerplichtBij?.includes(status) || bijStatus.length > 0;
+  if (!moet) return [];
+  if (!classificatie) return [`Een stuk wordt pas ${status} als het geclassificeerd is.`];
+  const waardering = isOndersteunend(classificatie.resultaat) ? "vernietigen" : lijst.resultaten.find((r) => r.id === classificatie.resultaat)?.waardering;
+  return bijStatus
+    .filter((a) => attribuutGeldt(a, waardering))
+    .filter((a) => { const w = classificatie.attributen?.[a.sleutel]; return w === undefined || w === ""; })
+    .map((a) => `${a.label} is verplicht als het stuk ${status} wordt; vul het in bij Classificeren.`);
+}
+
+/**
+ * De klassen die het model bij deze status voorstelt, in gebruik en (als dat
+ * bekend is) binnen het procestype van het stuk.
+ */
+export function klassenBijStatus(c: ClassificatiemodelConfig, lijst: Selectielijst, status: string | null | undefined, procestype?: number | null): ReturnType<typeof resultatenInGebruik> {
+  const namen = c.statusKlassen?.find((k) => k.status === status)?.namen;
+  if (!status || !namen?.length) return [];
+  const gewenst = new Set(namen.map((n) => n.trim().toLowerCase()));
+  return resultatenInGebruik(c, lijst).filter((r) => gewenst.has(r.naam.toLowerCase()) && (procestype == null || r.procestype === procestype));
 }
 
 /** Een gepubliceerde versie van het classificatiemodel. */
@@ -407,6 +468,23 @@ export function controleerClassificatiemodel(c: ClassificatiemodelConfig, lijst:
   } else if (statussen) {
     for (const s of c.vergrendelBij ?? []) if (!statussen.includes(s)) p.push({ sleutel: "vergrendelBij", ernst: "fout", melding: `"${s}" is geen status in het metadatamodel.` });
     if (c.termijnStartBij && !statussen.includes(c.termijnStartBij)) p.push({ sleutel: "termijnStartBij", ernst: "fout", melding: `"${c.termijnStartBij}" is geen status in het metadatamodel.` });
+    for (const s of c.classificerenVerplichtBij ?? []) if (!statussen.includes(s)) p.push({ sleutel: "classificerenVerplichtBij", ernst: "fout", melding: `Classificeren verplicht bij "${s}": dat is geen status in het metadatamodel.` });
+    for (const s of c.doorgevenBij ?? []) if (!statussen.includes(s)) p.push({ sleutel: "doorgevenBij", ernst: "fout", melding: `Doorgeven bij "${s}": dat is geen status in het metadatamodel.` });
+    for (const k of c.statusKlassen ?? []) if (!statussen.includes(k.status)) p.push({ sleutel: "statusKlassen", ernst: "fout", melding: `Klassen bij "${k.status}": dat is geen status in het metadatamodel.` });
+    for (const at of c.attributen ?? []) for (const s of at.verplichtBij ?? []) if (!statussen.includes(s)) p.push({ sleutel: at.sleutel, ernst: "fout", melding: `${at.label || at.sleutel}: verplicht bij "${s}", maar dat is geen status in het metadatamodel.` });
+  }
+  {
+    const namen = new Set(lijst.resultaten.map((r) => r.naam.toLowerCase()));
+    const statussenMetKlassen = new Set<string>();
+    for (const k of c.statusKlassen ?? []) {
+      if (statussenMetKlassen.has(k.status)) p.push({ sleutel: "statusKlassen", ernst: "fout", melding: `Bij "${k.status}" staan twee lijsten met klassen.` });
+      statussenMetKlassen.add(k.status);
+      if (!k.namen?.length) p.push({ sleutel: "statusKlassen", ernst: "fout", melding: `Noem bij "${k.status}" ten minste één klasse.` });
+      for (const n of k.namen ?? []) if (!namen.has(n.trim().toLowerCase())) p.push({ sleutel: "statusKlassen", ernst: "fout", melding: `Bij "${k.status}": "${n}" is geen resultaat in de selectielijst.` });
+    }
+    if ((c.doorgevenBij?.length ?? 0) && !(c.doorgevenBij ?? []).some((s) => c.vergrendelBij?.includes(s))) {
+      p.push({ sleutel: "doorgevenBij", ernst: "waarschuwing", melding: "Doorgeven bij een status die niet vergrendelt: een afgesloten zaak kan dan stuk voor stuk weer open." });
+    }
   }
   const ids = new Set(lijst.resultaten.map((r) => r.id));
   for (const u of c.uitgezet ?? []) if (!ids.has(u)) p.push({ sleutel: u, ernst: "fout", melding: `Resultaat ${u} staat niet in de selectielijst.` });

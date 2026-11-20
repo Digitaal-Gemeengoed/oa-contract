@@ -1,5 +1,14 @@
 # Wijzigingen
 
+## 0.12.0 — 2026-11-20
+
+**Het classificatiemodel reageert op de status.**
+- `ClassificatiemodelConfig` krijgt `classificerenVerplichtBij` (een stuk krijgt die status alleen als het geclassificeerd is), `doorgevenBij` (die status gaat naar alle stukken in dezelfde zaak of, zonder zaak, hetzelfde dossier) en `statusKlassen` (per status de namen van klassen die de assistent voorstelt, zoals Afgebroken bij "geannuleerd"; vertrekpunt `STATUSKLASSEN_OPZET`).
+- `ClassificatieAttribuut.verplichtBij`: verplicht zodra het stuk een van die statussen heeft of krijgt.
+- `ontbreektVoorStatus()`, `klassenBijStatus()` en `attribuutVerplicht()`.
+- De controle toetst de nieuwe statussen tegen het metadatamodel en de namen tegen de selectielijst, en waarschuwt bij doorgeven bij een status die niet vergrendelt.
+- `Informatieobject.doorgegeven`: in het antwoord op het vastleggen van metadata, hoeveel andere stukken de status ook kregen.
+
 ## 0.11.0 — 2026-11-19
 
 **Standaardattributen.** Attributen met een vaste betekenis, bij elke gemeente hetzelfde, zodat de assistent er iets mee kan.

@@ -312,6 +312,11 @@ export interface Informatieobject {
   vergrendeld?: { status: string } | null;
   /** Openstaande wijzigingsvoorstellen. */
   voorstellen?: number;
+  /**
+   * Alleen in het antwoord op het vastleggen van metadata: zoveel andere
+   * stukken in dezelfde zaak of hetzelfde dossier kregen dezelfde status.
+   */
+  doorgegeven?: { status: string; aantal: number; rol: "zaak" | "dossier"; waarde: string };
 }
 
 /** Een wijziging aan een vergrendeld stuk, ter beoordeling door een vrijgever. */

@@ -10,6 +10,9 @@ import {
   isVergrendeld,
   classificatiemodelnaam,
   ONDERSTEUNEND,
+  ontbreektVoorStatus,
+  klassenBijStatus,
+  attribuutVerplicht,
   OPZET_ONDERSTEUNEND,
   STANDAARDATTRIBUTEN,
   attribuutGeldt,
@@ -167,4 +170,37 @@ test("standaardattributen: vaste sleutel en soort, aanpasbare keuzes, koppeling 
   assert.deepEqual(voorstelPersoonsgegevens(eigen, ["zaaknummer"]), { waarde: "Nee", code: "geen" });
   assert.equal(voorstelPersoonsgegevens({ ...eigen, koppeling: {} }, ["bsn"]), null);
   assert.equal(voorstelPersoonsgegevens(ob, ["bsn"]), null);
+});
+
+test("status: classificeren verplicht, attributen per status, doorgeven en klassen bij een status", () => {
+  const ST = ["ontvangen", "in behandeling", "afgesloten", "geannuleerd"];
+  const c = {
+    ...standaardClassificatiemodel(),
+    vergrendelBij: ["afgesloten", "geannuleerd"],
+    termijnStartBij: "afgesloten",
+    classificerenVerplichtBij: ["afgesloten", "geannuleerd"],
+    doorgevenBij: ["afgesloten", "geannuleerd"],
+    statusKlassen: [{ status: "geannuleerd", namen: ["Afgebroken", "Ingetrokken"] }],
+    attributen: [{ sleutel: "kenmerk", label: "Kenmerk", type: "tekst", verplicht: false, verplichtBij: ["afgesloten"] }],
+  };
+  assert.deepEqual(controleerClassificatiemodel(c, L, ST).filter((p) => p.ernst === "fout"), []);
+  // Fouten: onbekende status, onbekende klasse.
+  const fout = controleerClassificatiemodel({ ...c, doorgevenBij: ["gesloten"], statusKlassen: [{ status: "geannuleerd", namen: ["Bestaat niet"] }] }, L, ST).filter((p) => p.ernst === "fout");
+  assert.equal(fout.length, 2);
+  // Doorgeven bij een status die niet vergrendelt: een waarschuwing.
+  assert.ok(controleerClassificatiemodel({ ...c, doorgevenBij: ["in behandeling"] }, L, ST).some((p) => p.sleutel === "doorgevenBij" && p.ernst === "waarschuwing"));
+
+  assert.deepEqual(ontbreektVoorStatus(c, L, "in behandeling", null), []);
+  assert.equal(ontbreektVoorStatus(c, L, "afgesloten", null).length, 1);
+  assert.match(ontbreektVoorStatus(c, L, "afgesloten", { resultaat: "1.1" })[0], /Kenmerk is verplicht/);
+  assert.deepEqual(ontbreektVoorStatus(c, L, "afgesloten", { resultaat: "1.1", attributen: { kenmerk: "Z-1" } }), []);
+  assert.deepEqual(ontbreektVoorStatus(c, L, "geannuleerd", { resultaat: "1.1" }), []);
+  assert.equal(attribuutVerplicht(c.attributen[0], "afgesloten"), true);
+  assert.equal(attribuutVerplicht(c.attributen[0], "ontvangen"), false);
+
+  const pt = L.resultaten.find((r) => r.naam === "Afgebroken").procestype;
+  const k = klassenBijStatus(c, L, "geannuleerd", pt);
+  assert.ok(k.length >= 1 && k.every((r) => r.procestype === pt && ["Afgebroken", "Ingetrokken"].includes(r.naam)));
+  assert.ok(klassenBijStatus(c, L, "geannuleerd").length > k.length);
+  assert.deepEqual(klassenBijStatus(c, L, "afgesloten", pt), []);
 });
