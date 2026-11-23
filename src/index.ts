@@ -95,6 +95,30 @@ export interface Werkomgeving {
   id: string;
   naam: string;
   vermogens: Vermogen[];
+  /** De versie van het programma, zoals "16.0.18129" of "LibreOffice 24.2.7.2" (Archiefregeling 2026, art. 2.8). */
+  versie?: string;
+  /** Het besturingssysteem of platform, zoals "Win32", "Mac" of "Linux x86_64". */
+  platform?: string;
+}
+
+/**
+ * Waarmee een versie is gemaakt en vastgelegd (Archiefregeling 2026, art. 2.8
+ * onder a: hardware, besturingsprogrammatuur en toepassingsprogrammatuur).
+ * De werkomgeving meldt de assistent; het platform vult zichzelf aan.
+ */
+export interface Omgeving {
+  werkomgeving?: Pick<Werkomgeving, "id" | "naam" | "versie" | "platform">;
+  /** De browser of webview waarin het paneel draaide (user agent). */
+  browser?: string;
+  /** Het platform dat de versie vastlegde, en de omgeving waarop het draaide. */
+  platform?: { naam: string; versie: string; runtime: string; os: string };
+}
+
+/** De laatste integriteitscontrole van een versie (Archiefregeling 2026, art. 2.8 onder b). */
+export interface Integriteitscontrole {
+  gecontroleerd: string;
+  /** ok: de inhoud klopt met de vastgelegde sha256; afwijkend: niet; onleesbaar: niet te lezen of te ontsleutelen. */
+  resultaat: "ok" | "afwijkend" | "onleesbaar";
 }
 
 /** Een plek in het document, zoals de adapter die begrijpt. */
@@ -298,6 +322,8 @@ export interface Weergave {
    */
   soort?: "weergave" | "geanonimiseerd";
   volgnummer?: number;
+  /** Bij een duurzame weergave: het profiel, zoals "PDF/A-2b, PDF/UA-1" (Archiefregeling 2026, art. 2.9). */
+  profiel?: string;
 }
 
 export interface Versie {
@@ -318,6 +344,10 @@ export interface Versie {
   ppl?: Ppl;
   /** Alleen nog voor informatiebeheer (rol beheerder). */
   beperkt?: boolean;
+  /** Waarmee de versie is gemaakt (art. 2.8 Archiefregeling 2026). */
+  omgeving?: Omgeving;
+  /** De laatste integriteitscontrole; ontbreekt = nog niet gecontroleerd. */
+  integriteit?: Integriteitscontrole;
 }
 
 /**
@@ -420,6 +450,8 @@ export const GEBEURTENISTYPEN = [
   "voorstel.ingediend",
   "voorstel.goedgekeurd",
   "voorstel.afgewezen",
+  // Archiefregeling 2026, art. 2.8 en 7.1: een integriteitscontrole die niet klopt (mogelijk een te melden incident).
+  "integriteit.afwijking",
 ] as const;
 
 export type Gebeurtenistype = (typeof GEBEURTENISTYPEN)[number];
@@ -862,5 +894,6 @@ export interface Fout {
 
 export * from "./schemas.js";
 export * from "./metadatamodellen.js";
+export * from "./archiefwet.js";
 export * from "./classificatie.js";
 export * from "./meting.js";

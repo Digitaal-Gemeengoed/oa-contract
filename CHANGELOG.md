@@ -1,5 +1,15 @@
 # Wijzigingen
 
+## 0.15.0 — 2026-11-23
+
+**Archiefregeling 2026** (Stcrt. 2026, 40895). Ontwerp: `oa-uitrol/docs/ontwerp/archiefregeling-2026.md`.
+- Nieuwe rollen: `taak` (art. 2.5) en `openbaarheid`, `beperkingsgrond`, `beperkingstermijn`, `beperkingEinddatum` (art. 2.12).
+- Catalogus: MDTO (beperkingGebruik met termijn, activiteit als taak), RGBZ (aanvullingen) en TMLO (openbaarheid, context.activiteit). In MDTO en TMLO staan datum en auteur nu standaard aan.
+- `archiefwet.ts`: de dertien gronden uit artikel 7.2 Archiefwet 2026 met hun maximale termijn (art. 7.4), `beperkingsgrond()`, `einddatumBeperking()`; waardelijsten `archiefwet-openbaarheid` en `archiefwet-beperkingsgrond`.
+- Schema: velden die alleen bij "beperkt openbaar" gelden (`x-oa-toon-als`, `x-oa-verplicht-als`) en de maximale duur per grond (`allOf`). `ontbrekendeVelden()` telt de voorwaardelijk verplichte mee.
+- Modelcontrole: waarschuwingen als een model geen veld heeft voor datum, auteur, taak of zaak, dossier of zaak, of openbaarheid.
+- `Werkomgeving.versie` en `.platform`; `Omgeving`, `Integriteitscontrole`, `Versie.omgeving`, `Versie.integriteit`, `Weergave.profiel`; gebeurtenis `integriteit.afwijking`.
+
 ## 0.14.0 — 2026-11-23
 
 **Meer gemeenten in één inrichting.** Ontwerp: `oa-uitrol/docs/multi-tenant.md`.

@@ -16,11 +16,16 @@
  * en filteren ongeacht het gekozen model.
  */
 import { VERTROUWELIJKHEID, WOO_INFORMATIECATEGORIEEN } from "./schemas.js";
+import { BEPERKINGSGRONDEN, BEPERKINGSGROND_WAARDEN, BEPERKT_OPENBAAR, grondWaarde, OPENBAARHEID } from "./archiefwet.js";
 
 export type ModelId = "mdto" | "rgbz" | "tmlo";
 
 /** Wat een veld betekent voor de assistent en het platform. */
-export const ROLLEN = ["titel", "omschrijving", "informatiecategorie", "vertrouwelijkheid", "taal", "zaak", "dossier", "auteur", "datum", "trefwoorden", "status"] as const;
+export const ROLLEN = [
+  "titel", "omschrijving", "informatiecategorie", "vertrouwelijkheid", "taal", "zaak", "dossier", "auteur", "datum", "trefwoorden", "status",
+  // Archiefregeling 2026: uit hoofde van welke taak (art. 2.5), en de openbaarheid bij overbrenging (art. 2.12).
+  "taak", "openbaarheid", "beperkingsgrond", "beperkingstermijn", "beperkingEinddatum",
+] as const;
 export type Rol = (typeof ROLLEN)[number];
 
 /**
@@ -72,6 +77,18 @@ export const WAARDELIJSTEN: Record<string, Waardelijst> = {
     bron: "RGBZ / ZGW",
     waarden: ["in bewerking", "ter vaststelling", "definitief", "gearchiveerd"],
   },
+  "archiefwet-openbaarheid": {
+    id: "archiefwet-openbaarheid",
+    naam: "Openbaarheid na overbrenging (Archiefwet 2026)",
+    bron: "Archiefwet 2026, art. 7.1",
+    waarden: OPENBAARHEID,
+  },
+  "archiefwet-beperkingsgrond": {
+    id: "archiefwet-beperkingsgrond",
+    naam: "Gronden voor beperking van de openbaarheid (art. 7.2 Archiefwet 2026)",
+    bron: "Archiefwet 2026, art. 7.2",
+    waarden: BEPERKINGSGROND_WAARDEN,
+  },
   "mdto-openbaarheid": {
     id: "mdto-openbaarheid",
     naam: "Openbaarheid (beperking gebruik)",
@@ -119,6 +136,8 @@ export interface CatalogusVeld {
   verplicht?: boolean;
   /** Geen element van het model: nodig voor de Woo of het zaakgericht werken. */
   aanvulling?: string;
+  /** Alleen tonen (en alleen verplicht) als het veld met deze rol deze waarde heeft. */
+  toonAls?: { rol: Rol; waarde: string };
 }
 
 export interface Metadatamodel {
@@ -133,6 +152,8 @@ export interface Metadatamodel {
 }
 
 const WOO_AANVULLING = "Geen element van dit model, maar nodig voor de Woo (informatiecategorie uit TOOI).";
+const ARCHIEF_AANVULLING = "Geen element van dit model, maar nodig voor de Archiefregeling 2026 (art. 2.12).";
+const BEPERKT = { rol: "openbaarheid", waarde: BEPERKT_OPENBAAR } as const;
 
 export const METADATAMODELLEN: Record<ModelId, Metadatamodel> = {
   mdto: {
@@ -148,16 +169,20 @@ export const METADATAMODELLEN: Record<ModelId, Metadatamodel> = {
       { sleutel: "omschrijving", element: "omschrijving", label: "Omschrijving", beschrijving: "Waar het stuk over gaat, in één of twee zinnen.", type: "lange-tekst", rol: "omschrijving", maxLengte: 2000, aan: true },
       { sleutel: "informatiecategorie", element: "informatiecategorie", label: "Informatiecategorie (Woo)", beschrijving: "De categorie uit artikel 3.3 van de Woo.", type: "keuze", rol: "informatiecategorie", waardelijst: "tooi-woo-informatiecategorie", aan: true, verplicht: true },
       { sleutel: "beperkingGebruik", element: "beperkingGebruik", label: "Vertrouwelijkheid", beschrijving: "Wie het stuk mag inzien.", type: "keuze", rol: "vertrouwelijkheid", waardelijst: "oa-vertrouwelijkheid", verplichtInModel: true, aan: true, verplicht: true },
+      { sleutel: "openbaarheid", element: "beperkingGebruik (openbaarheid)", label: "Openbaarheid na overbrenging", beschrijving: "Openbaar of beperkt openbaar als het stuk naar het archief gaat (Archiefwet 2026). Beperken kan alleen met een grond uit artikel 7.2.", type: "keuze", rol: "openbaarheid", waardelijst: "archiefwet-openbaarheid", aan: true },
+      { sleutel: "beperkingsgrond", element: "beperkingGebruik.beperkingGebruikNadereBeschrijving", label: "Grond voor beperking", beschrijving: "Waarom de openbaarheid beperkt is: een grond uit artikel 7.2 van de Archiefwet 2026.", type: "keuze", rol: "beperkingsgrond", waardelijst: "archiefwet-beperkingsgrond", aan: true, verplicht: true, toonAls: BEPERKT },
+      { sleutel: "beperkingstermijn", element: "beperkingGebruik.beperkingGebruikTermijn.termijnLooptijd", label: "Duur van de beperking (jaren)", beschrijving: "Hoeveel jaar na de datum van het stuk de beperking geldt: ten hoogste 20, 75 of 110 jaar, afhankelijk van de grond (artikel 7.4).", type: "getal", rol: "beperkingstermijn", aan: true, verplicht: true, toonAls: BEPERKT },
+      { sleutel: "beperkingEinddatum", element: "beperkingGebruik.beperkingGebruikTermijn.termijnEinddatum", label: "Beperking loopt af op", beschrijving: "De datum van het stuk plus de duur; de assistent rekent die voor je uit.", type: "datum", rol: "beperkingEinddatum", aan: true, verplicht: true, toonAls: BEPERKT },
       { sleutel: "taal", element: "taal", label: "Taal", beschrijving: "De taal van het stuk.", type: "keuze", rol: "taal", waardelijst: "iso-639-1", standaard: "nl", aan: true },
       { sleutel: "trefwoord", element: "trefwoord", label: "Trefwoorden", beschrijving: "Woorden waarop je het stuk wilt kunnen vinden, met komma's ertussen.", type: "tekst", rol: "trefwoorden", maxLengte: 500 },
       { sleutel: "classificatie", element: "classificatie", label: "Classificatie", beschrijving: "Plaats in het classificatieschema of de selectielijst van de gemeente.", type: "tekst", maxLengte: 200 },
       { sleutel: "isOnderdeelVan", element: "isOnderdeelVan", label: "Dossier", beschrijving: "Identificatie of naam van het dossier, als het stuk erbij hoort.", type: "tekst", rol: "dossier", maxLengte: 200, aan: true },
       { sleutel: "zaak", element: "—", label: "Zaak", beschrijving: "Zaaknummer, als het stuk bij een zaak hoort.", type: "tekst", rol: "zaak", maxLengte: 100, aan: true, aanvulling: "Geen element van MDTO; legt de koppeling met het zaaksysteem." },
-      { sleutel: "betrokkene", element: "betrokkene", label: "Betrokkene", beschrijving: "Een persoon of organisatie met een rol bij het stuk, zoals de opsteller.", type: "tekst", rol: "auteur", maxLengte: 200 },
-      { sleutel: "activiteit", element: "activiteit", label: "Activiteit", beschrijving: "De bedrijfsactiviteit waarbij het stuk is ontstaan.", type: "tekst", maxLengte: 200 },
+      { sleutel: "betrokkene", element: "betrokkene", label: "Betrokkene", beschrijving: "Een persoon of organisatie met een rol bij het stuk, zoals de opsteller.", type: "tekst", rol: "auteur", maxLengte: 200, aan: true },
+      { sleutel: "activiteit", element: "activiteit", label: "Taak", beschrijving: "De taak of het werkproces waarbij het stuk is ontstaan, zoals Wmo-maatwerkvoorziening of omgevingsvergunning.", type: "tekst", rol: "taak", maxLengte: 200, aan: true },
       { sleutel: "dekkingInTijd", element: "dekkingInTijd", label: "Dekking in tijd", beschrijving: "De periode waar het stuk over gaat (bijvoorbeeld 2026 of jan–jun 2026).", type: "tekst", maxLengte: 100 },
       { sleutel: "dekkingInRuimte", element: "dekkingInRuimte", label: "Dekking in ruimte", beschrijving: "Het gebied waar het stuk over gaat, zoals een wijk of adres.", type: "tekst", maxLengte: 200 },
-      { sleutel: "gebeurtenisDatum", element: "event (datum)", label: "Datum", beschrijving: "Datum van de belangrijkste gebeurtenis, zoals vaststelling of verzending.", type: "datum", rol: "datum" },
+      { sleutel: "gebeurtenisDatum", element: "event (datum)", label: "Datum", beschrijving: "Datum van de belangrijkste gebeurtenis, zoals vaststelling of verzending.", type: "datum", rol: "datum", aan: true },
       { sleutel: "waardering", element: "waardering", label: "Waardering", beschrijving: "Blijvend te bewaren of te vernietigen, volgens de selectielijst.", type: "keuze", waardelijst: "mdto-waardering", verplichtInModel: true },
       { sleutel: "bewaartermijn", element: "bewaartermijn", label: "Bewaartermijn", beschrijving: "Hoe lang het stuk bewaard blijft, in jaren.", type: "getal" },
       { sleutel: "raadpleeglocatie", element: "raadpleeglocatie", label: "Raadpleeglocatie", beschrijving: "Waar het stuk te raadplegen is, als dat ergens anders is.", type: "tekst", maxLengte: 200 },
@@ -184,6 +209,11 @@ export const METADATAMODELLEN: Record<ModelId, Metadatamodel> = {
       { sleutel: "ontvangstdatum", element: "ontvangstdatum", label: "Ontvangstdatum", beschrijving: "Voor een ontvangen stuk: de datum van ontvangst.", type: "datum" },
       { sleutel: "verzenddatum", element: "verzenddatum", label: "Verzenddatum", beschrijving: "Voor een verzonden stuk: de datum van verzending.", type: "datum" },
       { sleutel: "informatiecategorie", element: "—", label: "Informatiecategorie (Woo)", beschrijving: "De categorie uit artikel 3.3 van de Woo.", type: "keuze", rol: "informatiecategorie", waardelijst: "tooi-woo-informatiecategorie", aan: true, verplicht: true, aanvulling: WOO_AANVULLING },
+      { sleutel: "taak", element: "—", label: "Taak", beschrijving: "De taak of het werkproces waarbij het stuk is ontstaan. Bij een zaak volgt die meestal uit het zaaktype.", type: "tekst", rol: "taak", maxLengte: 200, aanvulling: "Geen element van RGBZ; in het zaakgericht werken volgt de taak uit het zaaktype (Archiefregeling 2026, art. 2.5)." },
+      { sleutel: "openbaarheid", element: "—", label: "Openbaarheid na overbrenging", beschrijving: "Openbaar of beperkt openbaar als het stuk naar het archief gaat (Archiefwet 2026). Beperken kan alleen met een grond uit artikel 7.2.", type: "keuze", rol: "openbaarheid", waardelijst: "archiefwet-openbaarheid", aan: true, aanvulling: ARCHIEF_AANVULLING },
+      { sleutel: "beperkingsgrond", element: "—", label: "Grond voor beperking", beschrijving: "Waarom de openbaarheid beperkt is: een grond uit artikel 7.2 van de Archiefwet 2026.", type: "keuze", rol: "beperkingsgrond", waardelijst: "archiefwet-beperkingsgrond", aan: true, verplicht: true, toonAls: BEPERKT, aanvulling: ARCHIEF_AANVULLING },
+      { sleutel: "beperkingstermijn", element: "—", label: "Duur van de beperking (jaren)", beschrijving: "Hoeveel jaar na de datum van het stuk de beperking geldt: ten hoogste 20, 75 of 110 jaar, afhankelijk van de grond (artikel 7.4).", type: "getal", rol: "beperkingstermijn", aan: true, verplicht: true, toonAls: BEPERKT, aanvulling: ARCHIEF_AANVULLING },
+      { sleutel: "beperkingEinddatum", element: "—", label: "Beperking loopt af op", beschrijving: "De datum van het stuk plus de duur; de assistent rekent die voor je uit.", type: "datum", rol: "beperkingEinddatum", aan: true, verplicht: true, toonAls: BEPERKT, aanvulling: ARCHIEF_AANVULLING },
     ],
   },
   tmlo: {
@@ -199,13 +229,17 @@ export const METADATAMODELLEN: Record<ModelId, Metadatamodel> = {
       { sleutel: "omschrijving", element: "omschrijving", label: "Omschrijving", beschrijving: "Waar het stuk over gaat.", type: "lange-tekst", rol: "omschrijving", maxLengte: 2000, aan: true },
       { sleutel: "classificatie", element: "classificatie", label: "Classificatie", beschrijving: "Code en omschrijving uit het classificatieschema.", type: "tekst", maxLengte: 200, aan: true },
       { sleutel: "vertrouwelijkheid", element: "vertrouwelijkheid.classificatieNiveau", label: "Vertrouwelijkheid", beschrijving: "Het classificatieniveau.", type: "keuze", rol: "vertrouwelijkheid", waardelijst: "oa-vertrouwelijkheid", aan: true, verplicht: true },
-      { sleutel: "openbaarheid", element: "openbaarheid.omschrijvingBeperkingen", label: "Openbaarheid", beschrijving: "Beperkingen aan de openbaarheid.", type: "keuze", waardelijst: "mdto-openbaarheid" },
+      { sleutel: "openbaarheid", element: "openbaarheid", label: "Openbaarheid na overbrenging", beschrijving: "Openbaar of beperkt openbaar als het stuk naar het archief gaat (Archiefwet 2026). Beperken kan alleen met een grond uit artikel 7.2.", type: "keuze", rol: "openbaarheid", waardelijst: "archiefwet-openbaarheid", aan: true },
+      { sleutel: "beperkingsgrond", element: "openbaarheid.omschrijvingBeperkingen", label: "Grond voor beperking", beschrijving: "Waarom de openbaarheid beperkt is: een grond uit artikel 7.2 van de Archiefwet 2026.", type: "keuze", rol: "beperkingsgrond", waardelijst: "archiefwet-beperkingsgrond", aan: true, verplicht: true, toonAls: BEPERKT },
+      { sleutel: "beperkingstermijn", element: "—", label: "Duur van de beperking (jaren)", beschrijving: "Hoeveel jaar na de datum van het stuk de beperking geldt: ten hoogste 20, 75 of 110 jaar, afhankelijk van de grond (artikel 7.4).", type: "getal", rol: "beperkingstermijn", aan: true, verplicht: true, toonAls: BEPERKT, aanvulling: ARCHIEF_AANVULLING },
+      { sleutel: "beperkingEinddatum", element: "openbaarheid.datumOfPeriode", label: "Beperking loopt af op", beschrijving: "De datum van het stuk plus de duur; de assistent rekent die voor je uit.", type: "datum", rol: "beperkingEinddatum", aan: true, verplicht: true, toonAls: BEPERKT },
       { sleutel: "taal", element: "taal", label: "Taal", beschrijving: "De taal van het stuk.", type: "keuze", rol: "taal", waardelijst: "iso-639-1", standaard: "nl", aan: true },
       { sleutel: "plaats", element: "plaats", label: "Plaats", beschrijving: "Waar het stuk is opgemaakt.", type: "tekst", maxLengte: 100 },
       { sleutel: "dekkingInTijd", element: "dekking.inTijd", label: "Dekking in tijd", beschrijving: "De periode waar het stuk over gaat.", type: "tekst", maxLengte: 100 },
       { sleutel: "dekkingGeografie", element: "dekking.geografischGebied", label: "Dekking in ruimte", beschrijving: "Het gebied waar het stuk over gaat.", type: "tekst", maxLengte: 200 },
-      { sleutel: "eventDatum", element: "eventGeschiedenis.datumOfPeriode", label: "Datum", beschrijving: "Datum van de belangrijkste gebeurtenis, zoals vaststelling of verzending.", type: "datum", rol: "datum" },
-      { sleutel: "actor", element: "context.actor", label: "Actor", beschrijving: "De persoon of afdeling die het stuk heeft gemaakt.", type: "tekst", rol: "auteur", maxLengte: 200 },
+      { sleutel: "eventDatum", element: "eventGeschiedenis.datumOfPeriode", label: "Datum", beschrijving: "Datum van de belangrijkste gebeurtenis, zoals vaststelling of verzending.", type: "datum", rol: "datum", aan: true },
+      { sleutel: "activiteit", element: "context.activiteit", label: "Taak", beschrijving: "De taak of het werkproces (activiteit) waarbij het stuk is ontstaan.", type: "tekst", rol: "taak", maxLengte: 200, aan: true },
+      { sleutel: "actor", element: "context.actor", label: "Actor", beschrijving: "De persoon of afdeling die het stuk heeft gemaakt.", type: "tekst", rol: "auteur", maxLengte: 200, aan: true },
       { sleutel: "relatie", element: "relatie", label: "Dossier", beschrijving: "Het dossier of de serie waar het stuk bij hoort.", type: "tekst", rol: "dossier", maxLengte: 200, aan: true },
       { sleutel: "zaak", element: "—", label: "Zaak", beschrijving: "Zaaknummer, als het stuk bij een zaak hoort.", type: "tekst", rol: "zaak", maxLengte: 100, aan: true, aanvulling: "Geen element van TMLO; legt de koppeling met het zaaksysteem." },
       { sleutel: "informatiecategorie", element: "—", label: "Informatiecategorie (Woo)", beschrijving: "De categorie uit artikel 3.3 van de Woo.", type: "keuze", rol: "informatiecategorie", waardelijst: "tooi-woo-informatiecategorie", aan: true, verplicht: true, aanvulling: WOO_AANVULLING },
@@ -304,6 +338,15 @@ export function controleerConfig(c: MetadatamodelConfig): ConfigProbleem[] {
     p.push({ sleutel: woo.sleutel, ernst: "waarschuwing", melding: `De Woo-categorie is verplicht, maar "geen categorie" staat uit. Een stuk dat in geen categorie van artikel 3.3 valt (zoals een gespreksverslag met een inwoner), krijgt dan een categorie die niet klopt.` });
   }
   if (!rollen.has("vertrouwelijkheid")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor vertrouwelijkheid aan." });
+  // Archiefregeling 2026, artikel 2.5 en 2.12. Classificatie en bewaartermijn komen uit het classificatiemodel.
+  if (!rollen.has("datum")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor de datum van het stuk aan. De Archiefregeling 2026 (art. 2.5) vraagt wanneer het stuk is opgemaakt of ontvangen." });
+  if (!rollen.has("auteur")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor de auteur of opsteller aan. De Archiefregeling 2026 (art. 2.5) vraagt door wie het stuk is opgemaakt of ontvangen." });
+  if (!rollen.has("taak") && !rollen.has("zaak")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor de taak (of de zaak) aan. De Archiefregeling 2026 (art. 2.5) vraagt uit hoofde van welke taak het stuk is opgemaakt of ontvangen." });
+  if (!rollen.has("dossier") && !rollen.has("zaak")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor dossier of zaak aan. De Archiefregeling 2026 (art. 2.5) vraagt de samenhang met andere stukken en de plaats in de ordening." });
+  if (!rollen.has("openbaarheid")) p.push({ ernst: "waarschuwing", melding: "Er staat geen veld voor openbaarheid na overbrenging aan. De Archiefregeling 2026 (art. 2.12) vraagt die uiterlijk bij overbrenging; vastleggen bij het maken is het eenvoudigst." });
+  else for (const r of ["beperkingsgrond", "beperkingstermijn", "beperkingEinddatum"] as const) {
+    if (!rollen.has(r)) p.push({ ernst: "waarschuwing", melding: `Openbaarheid staat aan, maar ${r === "beperkingsgrond" ? "de grond" : r === "beperkingstermijn" ? "de duur" : "de einddatum"} van een beperking niet. De Archiefregeling 2026 (art. 2.12) vraagt die bij een beperking.` });
+  }
   if (!c.velden.some((k) => k.aan)) p.push({ ernst: "fout", melding: "Er staat geen enkel veld aan." });
   return p;
 }
@@ -321,6 +364,7 @@ export interface SchemaVeld {
   standaard?: string;
   verplicht: boolean;
   eigen: boolean;
+  toonAls?: { rol: Rol; waarde: string };
 }
 
 /** De velden die aan staan, in volgorde. */
@@ -347,6 +391,7 @@ export function actieveVelden(c: MetadatamodelConfig): SchemaVeld[] {
         standaard: cat?.standaard,
         verplicht: k.verplicht,
         eigen: !!k.eigen,
+        ...(cat?.toonAls ? { toonAls: cat.toonAls } : {}),
       };
     });
 }
@@ -359,7 +404,21 @@ export function schemaUitConfig(c: MetadatamodelConfig): Record<string, unknown>
   const fouten = controleerConfig(c).filter((p) => p.ernst === "fout");
   if (fouten.length) throw new Error(fouten.map((f) => f.melding).join(" "));
   const properties: Record<string, Record<string, unknown>> = {};
-  for (const v of actieveVelden(c)) {
+  const actief = actieveVelden(c);
+  const sleutelVan = (rol: Rol) => actief.find((v) => v.rol === rol)?.sleutel;
+  // Velden die alleen gelden als een ander veld een waarde heeft (zoals de grond bij "beperkt openbaar").
+  const verplichtAls: { veld: string; waarde: string; velden: string[] }[] = [];
+  const voorwaardelijk = new Set<string>();
+  for (const v of actief) {
+    const veld = v.toonAls && sleutelVan(v.toonAls.rol);
+    if (!veld || !v.toonAls) continue;
+    voorwaardelijk.add(v.sleutel);
+    if (!v.verplicht) continue;
+    const regel = verplichtAls.find((r) => r.veld === veld && r.waarde === v.toonAls!.waarde);
+    if (regel) regel.velden.push(v.sleutel);
+    else verplichtAls.push({ veld, waarde: v.toonAls.waarde, velden: [v.sleutel] });
+  }
+  for (const v of actief) {
     const e: Record<string, unknown> = { title: v.label };
     if (v.beschrijving) e.description = v.beschrijving;
     if (v.type === "keuze") e.enum = [...(v.opties ?? [])];
@@ -377,17 +436,48 @@ export function schemaUitConfig(c: MetadatamodelConfig): Record<string, unknown>
     if (!v.eigen && v.element !== "—") e[`x-${c.basis}`] = v.element;
     if (v.rol) e["x-oa-rol"] = v.rol;
     if (v.eigen) e["x-oa-eigen"] = true;
+    if (v.rol === "beperkingstermijn") Object.assign(e, { type: "integer", minimum: 1, maximum: 110 });
+    const toon = v.toonAls && sleutelVan(v.toonAls.rol);
+    if (toon && v.toonAls) e["x-oa-toon-als"] = { veld: toon, waarde: v.toonAls.waarde };
     properties[v.sleutel] = e;
   }
+  // Artikel 7.4 Archiefwet 2026: de duur hangt af van de grond.
+  const grond = sleutelVan("beperkingsgrond");
+  const termijn = sleutelVan("beperkingstermijn");
+  const allOf = grond && termijn
+    ? BEPERKINGSGRONDEN.filter((g) => g.maxJaren < 110).map((g) => ({
+        if: { properties: { [grond]: { const: grondWaarde(g) } }, required: [grond] },
+        then: { properties: { [termijn]: { maximum: g.maxJaren } } },
+      }))
+    : [];
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     type: "object",
     "x-oa-model": c.basis,
     "x-oa-config": c,
-    required: actieveVelden(c).filter((v) => v.verplicht).map((v) => v.sleutel),
+    required: actief.filter((v) => v.verplicht && !voorwaardelijk.has(v.sleutel)).map((v) => v.sleutel),
+    ...(verplichtAls.length ? { "x-oa-verplicht-als": verplichtAls } : {}),
+    ...(allOf.length ? { allOf } : {}),
     additionalProperties: false,
     properties,
   };
+}
+
+/**
+ * Welke verplichte velden nog leeg zijn: de vaste (required) en de
+ * voorwaardelijke (x-oa-verplicht-als, zoals de grond bij "beperkt
+ * openbaar"). Leeg mag; het stuk heet dan onvolledig.
+ */
+export function ontbrekendeVelden(schema: unknown, metadata: Record<string, unknown> | null | undefined): string[] {
+  const s = (schema ?? {}) as { required?: string[]; "x-oa-verplicht-als"?: { veld: string; waarde: string; velden: string[] }[] };
+  const m = metadata ?? {};
+  const leeg = (k: string) => m[k] === undefined || m[k] === null || m[k] === "";
+  const uit = (s.required ?? []).filter(leeg);
+  for (const r of s["x-oa-verplicht-als"] ?? []) {
+    if (m[r.veld] !== r.waarde) continue;
+    for (const k of r.velden) if (leeg(k) && !uit.includes(k)) uit.push(k);
+  }
+  return uit;
 }
 
 export const MODELNAAM_MAX = 80;

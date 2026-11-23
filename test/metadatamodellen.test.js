@@ -127,3 +127,48 @@ test("Woo: ook \"geen categorie\" kan een keuze zijn, alleen bij de informatieca
   const fout = { ...c, velden: c.velden.map((v) => (v.sleutel === "titel" ? { ...v, geenCategorie: true } : v)) };
   assert.ok(controleerConfig(fout).some((p) => p.ernst === "fout" && /Geen categorie/.test(p.melding)));
 });
+
+test("Archiefregeling 2026: openbaarheid, grond, duur en einddatum in elk basismodel", async () => {
+  const c = await import("../dist/index.js");
+  for (const basis of ["mdto", "rgbz", "tmlo"]) {
+    const schema = c.schemaUitConfig(c.standaardConfig(basis));
+    const r = c.rollenVan(schema);
+    for (const rol of ["openbaarheid", "beperkingsgrond", "beperkingstermijn", "beperkingEinddatum"]) assert.ok(r[rol], `${basis}: ${rol}`);
+    // Grond, duur en einddatum tonen alleen bij "beperkt openbaar", en zijn dan verplicht.
+    assert.deepEqual(schema.properties[r.beperkingsgrond]["x-oa-toon-als"], { veld: r.openbaarheid, waarde: "beperkt openbaar" });
+    assert.ok(!schema.required.includes(r.beperkingsgrond));
+    const vw = [r.beperkingsgrond, r.beperkingstermijn, r.beperkingEinddatum];
+    assert.deepEqual(c.ontbrekendeVelden(schema, { [r.openbaarheid]: "openbaar" }).filter((k) => vw.includes(k)), []);
+    assert.deepEqual(
+      c.ontbrekendeVelden(schema, { [r.openbaarheid]: "beperkt openbaar" }).filter((k) => [r.beperkingsgrond, r.beperkingstermijn, r.beperkingEinddatum].includes(k)).sort(),
+      [r.beperkingsgrond, r.beperkingstermijn, r.beperkingEinddatum].sort(),
+    );
+    // De maximale duur per grond staat in het schema (artikel 7.4).
+    const regel = schema.allOf.find((a) => a.if.properties[r.beperkingsgrond].const.includes("lid 2 onder b"));
+    assert.equal(regel.then.properties[r.beperkingstermijn].maximum, 20);
+  }
+  // MDTO en TMLO hebben een taak (activiteit); RGBZ kent hem als aanvulling, standaard uit (de zaak dekt hem).
+  assert.equal(c.rollenVan(c.schemaUitConfig(c.standaardConfig("mdto"))).taak, "activiteit");
+  assert.equal(c.rollenVan(c.schemaUitConfig(c.standaardConfig("rgbz"))).taak, undefined);
+});
+
+test("Archiefwet 2026: gronden, maximale termijnen en de einddatum", async () => {
+  const c = await import("../dist/index.js");
+  assert.equal(c.BEPERKINGSGRONDEN.length, 13);
+  assert.equal(c.beperkingsgrond("art. 7.2 lid 2 onder e — eerbiediging van de persoonlijke levenssfeer")?.maxJaren, 110);
+  assert.equal(c.beperkingsgrond("art. 7.2 lid 1 onder a — eenheid van de Kroon")?.maxJaren, 75);
+  assert.equal(c.einddatumBeperking("2026-11-23", 20), "2046-11-23");
+  assert.equal(c.einddatumBeperking("2028-02-29", 1), "2029-02-28");
+  assert.equal(c.einddatumBeperking("2026-11-23", 0), undefined);
+  assert.equal(c.einddatumBeperking("23-11-2026", 5), undefined);
+});
+
+test("modelcontrole: waarschuwingen voor wat de Archiefregeling 2026 vraagt", async () => {
+  const c = await import("../dist/index.js");
+  const leeg = { basis: "mdto", velden: [{ sleutel: "naam", aan: true, verplicht: true }] };
+  const m = c.controleerConfig(leeg).map((p) => p.melding).join("\n");
+  for (const woord of ["art. 2.5) vraagt wanneer", "door wie", "uit hoofde van welke taak", "samenhang", "art. 2.12"]) assert.ok(m.includes(woord), woord);
+  // Het standaardmodel van MDTO geeft geen van deze waarschuwingen.
+  const std = c.controleerConfig(c.standaardConfig("mdto")).map((p) => p.melding).join("\n");
+  assert.ok(!std.includes("Archiefregeling"), std);
+});
