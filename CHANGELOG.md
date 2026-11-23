@@ -1,5 +1,13 @@
 # Wijzigingen
 
+## 0.14.0 — 2026-11-23
+
+**Meer gemeenten in één inrichting.** Ontwerp: `oa-uitrol/docs/multi-tenant.md`.
+- `WieBenIk.gemeenteNaam` (zoals "Gemeente Haarlem") en `WieBenIk.gemeenten`: alle gemeenten waar de gebruiker bij hoort.
+- `gemeentenUitToken()`: de thuisgemeente en de gemeenten uit een token van Keycloak (claim `organization` van Keycloak Organizations, met terugval op de claim `gemeente`). Integratielaag en beheerportaal lezen het token zo op dezelfde manier.
+- `GemeenteRef`, `GEMEENTE_ID` en `gemeenteNaamUitId()`.
+- `Informatieobject.gemeenteNaam`: de uitgever bij openbaarmaking.
+
 ## 0.13.0 — 2026-11-20
 
 **Documenteigenschappen en het opmaakprofiel Titel.**

@@ -332,6 +332,8 @@ export interface Informatieobject {
   /** Ontbreekt bij een platform zonder dit onderscheid: dan zakelijk. */
   aard?: Aard;
   gemeente: string;
+  /** De naam van de gemeente, zoals "Gemeente Haarlem": de uitgever bij openbaarmaking. */
+  gemeenteNaam?: string;
   objecttype: ObjecttypeVerwijzing;
   metadata: Record<string, unknown>;
   versies: Versie[];
@@ -793,11 +795,62 @@ export interface MetadataVastleggen {
 export interface WieBenIk {
   sub: string;
   naam: string;
+  /** De thuisgemeente: voor die gemeente werkt de assistent. */
   gemeente: string;
+  /** De naam van de thuisgemeente, zoals "Gemeente Haarlem" (uit Keycloak). */
+  gemeenteNaam?: string;
+  /** Alle gemeenten waar de gebruiker bij hoort (organisaties in Keycloak); bij een GR soms meer dan één. */
+  gemeenten?: GemeenteRef[];
   rollen: string[];
   /** PPL-niveau, zie Actor.niveau. */
   niveau?: Ppl;
   namens?: string;
+}
+
+/** Een gemeente in een inrichting: id (zoals "haarlem") en naam. */
+export interface GemeenteRef {
+  id: string;
+  naam: string;
+}
+
+export const GEMEENTE_ID = /^[a-z0-9-]{2,40}$/;
+
+/** "haarlem" → "Gemeente Haarlem", als Keycloak geen naam geeft. */
+export const gemeenteNaamUitId = (id: string): string =>
+  `Gemeente ${id.split("-").map((d) => (d ? d[0]!.toUpperCase() + d.slice(1) : d)).join("-")}`;
+
+/**
+ * De gemeenten uit een token van Keycloak. De claim "organization" (Keycloak
+ * Organizations, scope organization:*) is een object met per gemeente de
+ * attributen, of een lijst van aliassen; de thuisgemeente staat in de claim
+ * "gemeente" (attribuut van de gebruiker). Zonder organisaties geldt alleen
+ * de claim "gemeente" (zo werkten inrichtingen van vóór de organisaties).
+ *
+ * Regels: met precies één organisatie is dat de thuisgemeente; met meer moet
+ * de claim "gemeente" er een van zijn. Anders geen thuisgemeente (null).
+ */
+export function gemeentenUitToken(p: Record<string, unknown>): { thuis: GemeenteRef | null; gemeenten: GemeenteRef[] } {
+  const org = p.organization;
+  const gemeenten: GemeenteRef[] = [];
+  const voeg = (id: string, naam?: unknown) => {
+    if (!GEMEENTE_ID.test(id) || gemeenten.some((g) => g.id === id)) return;
+    const n = Array.isArray(naam) ? naam[0] : naam;
+    gemeenten.push({ id, naam: typeof n === "string" && n.trim() ? n.trim() : gemeenteNaamUitId(id) });
+  };
+  if (Array.isArray(org)) {
+    for (const o of org) {
+      if (typeof o === "string") voeg(o);
+      else if (o && typeof o === "object") for (const [id, a] of Object.entries(o)) voeg(id, (a as Record<string, unknown> | null)?.naam);
+    }
+  } else if (org && typeof org === "object") {
+    for (const [id, a] of Object.entries(org)) voeg(id, (a as Record<string, unknown> | null)?.naam);
+  }
+  const claim = typeof p.gemeente === "string" ? p.gemeente : "";
+  if (!gemeenten.length) {
+    return GEMEENTE_ID.test(claim) ? { thuis: { id: claim, naam: gemeenteNaamUitId(claim) }, gemeenten: [] } : { thuis: null, gemeenten };
+  }
+  const thuis = gemeenten.length === 1 ? gemeenten[0]! : gemeenten.find((g) => g.id === claim) ?? null;
+  return { thuis, gemeenten };
 }
 
 /** Foutantwoord van integratielaag en platform. */
