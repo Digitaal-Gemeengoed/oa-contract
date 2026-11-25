@@ -202,6 +202,18 @@ export interface Adapter {
    */
   herkleurPii?(plaatshouder: string, ppl: Ppl): Promise<void>;
   toonPiiPlek?(plek: string): void;
+  /**
+   * Tijdelijk de originele waarden in de tekst in plaats van de plaatshouders
+   * (alleen voor wie het niveau heeft). Het document gaat op alleen-lezen en
+   * kan zo niet worden opgeslagen, geëxporteerd of afgedrukt; de werkomgeving
+   * weigert in die tijd ook alles wat de inhoud leest of wijzigt. Alleen voor
+   * een opgeslagen, ongewijzigd document. Geeft het aantal plekken.
+   */
+  toonPiiOriginelen?(waarden: { plaatshouder: string; waarde: string }[]): Promise<number>;
+  /** De plaatshouders terug en het document weer bewerkbaar. */
+  verbergPiiOriginelen?(): Promise<void>;
+  /** Staan de originelen nu in de tekst (bijvoorbeeld na het heropenen van het paneel)? */
+  piiOriginelenZichtbaar?(): Promise<boolean>;
   /** Meldt een klik op een plaatshouder in het document; geeft een functie om te stoppen. */
   bijPiiKlik?(terugroep: (plek: PiiPlek) => void): () => void;
   /** Een documenteigenschap die de medewerker in het bestand ziet ("eigenschap-schrijven"). */

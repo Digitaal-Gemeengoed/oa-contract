@@ -1,5 +1,9 @@
 # Wijzigingen
 
+## 0.16.0 — 2026-11-25
+
+- Adapter: `toonPiiOriginelen(waarden)`, `verbergPiiOriginelen()` en `piiOriginelenZichtbaar()` (optioneel). De werkomgeving toont de originele waarden tijdelijk op de plaats van de plaatshouders, met het document op alleen-lezen: opslaan, exporteren en afdrukken zijn dan niet mogelijk. Alleen voor een opgeslagen, ongewijzigd document. Ontwerp: `oa-uitrol/docs/ontwerp/anonimiseren-in-het-document.md`.
+
 ## 0.15.0 — 2026-11-23
 
 **Archiefregeling 2026** (Stcrt. 2026, 40895). Ontwerp: `oa-uitrol/docs/ontwerp/archiefregeling-2026.md`.
